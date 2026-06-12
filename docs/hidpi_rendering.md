@@ -14,7 +14,7 @@ If the active display density is `2`, the interactive Pyglet backend renders int
 circle(320, 210, 100)
 ```
 
-Internally, the Pillow-backed renderer scales drawing coordinates, transforms, and stroke weights by the active pixel density before rasterizing.
+Internally, the current Pillow-backed bridge renderer scales drawing coordinates, transforms, and stroke weights by the active pixel density before rasterizing. The planned native Pyglet renderer must preserve this same logical-coordinate behavior without uploading a Pillow image every frame. See `docs/native_pyglet_renderer.md`.
 
 ## APIs
 

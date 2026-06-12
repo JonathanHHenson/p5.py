@@ -248,8 +248,9 @@ The context should own:
 
 1. **Headless backend** for tests and deterministic rendering.
 2. **Pillow raster backend** for early 2D output, image export, and golden tests.
-3. **Interactive backend** using a native Python windowing/rendering package such as Pyglet, pygame-ce/SDL, or Skia-backed rendering.
-4. **OpenGL/3D backend** for WebGL-like features if the 2D core is stable.
+3. **Interactive Pyglet backend** for native windows, event handling, and interactive presentation.
+4. **Native Pyglet renderer** to replace the current Pillow bridge for interactive drawing. See `docs/native_pyglet_renderer.md`.
+5. **OpenGL/3D backend** for WebGL-like features if the 2D core is stable.
 
 ### Renderer protocol
 
@@ -366,6 +367,8 @@ Documentation should include:
 - Unsupported and excluded API list.
 - Backend selection guide.
 - Image and pixel guide.
+- HiDPI rendering guide.
+- Native Pyglet renderer design guide.
 - Rust acceleration guide.
 - Contributor architecture guide.
 - Examples gallery using Python only.
