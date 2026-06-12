@@ -18,6 +18,10 @@ y = 80.0
 vx = 4.0
 vy = 3.0
 radius = 28.0
+ground_offset = 15
+frame_count = 0
+fps_print_interval_ms = 1000.0
+last_fps_print_millis = 0.0
 
 
 def setup() -> None:
@@ -35,7 +39,7 @@ def draw() -> None:
 
     if x < radius or x > p5.width() - radius:
         vx *= -1
-    if y < radius or y > p5.height() - radius:
+    if y < radius or y > p5.height() - radius - ground_offset:
         vy *= -1
 
     p5.no_stroke()
@@ -44,7 +48,26 @@ def draw() -> None:
 
     p5.stroke(255, 255, 255, 80)
     p5.stroke_weight(2)
-    p5.line(0, p5.height() - 30, p5.width(), p5.height() - 30)
+    p5.line(0, p5.height() - ground_offset, p5.width(), p5.height() - ground_offset)
+
+    print_fps()
+
+
+def print_fps() -> None:
+    global frame_count, last_fps_print_millis
+
+    frame_count += 1
+    now = p5.millis()
+    fps_print_delta = now - last_fps_print_millis
+    if fps_print_delta >= fps_print_interval_ms:
+        fps_sample = 1000 * frame_count / fps_print_delta
+        print(f"FPS: {fps_sample:.1f}")
+        last_fps_print_millis = now
+        frame_count = 0
+
+
+def lerp(start: float, stop: float, amount: float) -> float:
+    return start + (stop - start) * amount
 
 
 def main() -> None:

@@ -31,8 +31,11 @@ class PygletBackend:
         pyglet = self._load_pyglet()
         self.renderer.bind_pyglet(pyglet)
         if self._window is None:
-            self._window = pyglet.window.Window(width=width, height=height, caption="p5-py")
+            self._window = pyglet.window.Window(
+                width=width, height=height, caption="p5-py", vsync=True
+            )
         else:
+            self._window.set_vsync(True)
             self._window.set_size(width, height)
         density = self._display_density_for_width(width) if pixel_density is None else pixel_density
         self.renderer.resize(width, height, density)
@@ -112,6 +115,7 @@ class PygletBackend:
             import pyglet
 
             self._pyglet = pyglet
+
         return self._pyglet
 
     def _install_handlers(self, sketch) -> None:
