@@ -1,0 +1,35 @@
+[my_pbi]
+title = "Implement paths, custom shapes, and curves"
+description = '''
+As a advanced sketch author,
+I want p5-style shape construction and curve APIs,
+So that expressive 2D sketches can be ported from p5.js.
+'''
+acceptance_criteria = '''
+`begin_shape`, `end_shape`, `vertex`, `begin_contour`, `end_contour`, Bezier curves, curve vertices, and related curve math APIs are supported or clearly marked partial with tests for supported behavior.
+'''
+priotity = 'medium'
+
+[my_pbi.task_1]
+order = 1
+description = '''
+Create shape-construction state for vertices, contours, close/open modes, and shape kinds.
+'''
+
+[my_pbi.task_2]
+order = 2
+description = '''
+Implement path rendering for polygonal shapes and contours in supported renderers.
+'''
+
+[my_pbi.task_3]
+order = 3
+description = '''
+Implement Bezier and curve helper math including point and tangent functions.
+'''
+
+[my_pbi.task_4]
+order = 4
+description = '''
+Add golden and unit tests for custom shapes, contours, and curves.
+'''
