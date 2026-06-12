@@ -6,6 +6,9 @@ import math
 from pathlib import Path
 
 from p5_py import constants as c
+from p5_py.assets.image import Image
+from p5_py.assets.text import Font
+from p5_py.core import math as p5math
 from p5_py.core.color import Color, lerp_color
 from p5_py.core.geometry import (
     flatten_cubic,
@@ -148,6 +151,16 @@ class SketchContext:
             raise ArgumentValidationError("stroke_weight() cannot be negative.")
         self.state.style.stroke_weight = float(weight)
 
+    def stroke_cap(self, cap: str) -> None:
+        if cap not in {c.ROUND, c.SQUARE, c.PROJECT}:
+            raise ArgumentValidationError(f"Unsupported stroke cap {cap!r}.")
+        self.state.style.stroke_cap = cap
+
+    def stroke_join(self, join: str) -> None:
+        if join not in {c.MITER, c.BEVEL, c.ROUND}:
+            raise ArgumentValidationError(f"Unsupported stroke join {join!r}.")
+        self.state.style.stroke_join = join
+
     def rect_mode(self, mode: str) -> None:
         if mode not in {c.CORNER, c.CORNERS, c.CENTER, c.RADIUS}:
             raise ArgumentValidationError(f"Unsupported rect mode {mode!r}.")
@@ -157,6 +170,11 @@ class SketchContext:
         if mode not in {c.CORNER, c.CORNERS, c.CENTER, c.RADIUS}:
             raise ArgumentValidationError(f"Unsupported ellipse mode {mode!r}.")
         self.state.style.ellipse_mode = mode
+
+    def image_mode(self, mode: str) -> None:
+        if mode not in {c.CORNER, c.CORNERS, c.CENTER}:
+            raise ArgumentValidationError(f"Unsupported image mode {mode!r}.")
+        self.state.style.image_mode = mode
 
     def point(self, x: float, y: float) -> None:
         self.renderer.point(float(x), float(y), self.state.style, self.state.transform.matrix)
@@ -359,6 +377,7 @@ class SketchContext:
         if mode not in {c.RADIANS, c.DEGREES}:
             raise ArgumentValidationError(f"Unsupported angle mode {mode!r}.")
         self.angle_mode_value = mode
+        p5math.set_angle_mode(mode)
 
     def frame_rate(self, value: float | None = None) -> float:
         if value is not None:
@@ -381,6 +400,88 @@ class SketchContext:
 
     def is_looping(self) -> bool:
         return self.state.looping
+
+    def image(self, image: Image, x: float, y: float, *args: float) -> None:
+        if not isinstance(image, Image):
+            raise ArgumentValidationError("image() requires a p5_py Image object.")
+        if len(args) == 0:
+            w, h = image.width, image.height
+            source = None
+        elif len(args) == 2:
+            w, h = args
+            source = None
+        elif len(args) == 6:
+            w, h, sx, sy, sw, sh = args
+            source = (int(sx), int(sy), int(sw), int(sh))
+        else:
+            raise ArgumentValidationError(
+                "image() accepts image, x, y; image, x, y, w, h; "
+                "or image, x, y, w, h, sx, sy, sw, sh."
+            )
+        dx, dy, dw, dh = resolve_rect(
+            self.state.style.image_mode, float(x), float(y), float(w), float(h)
+        )
+        self.renderer.draw_image(
+            image,
+            dx,
+            dy,
+            dw,
+            dh,
+            self.state.style,
+            self.state.transform.matrix,
+            source=source,
+        )
+
+    def text(self, value: object, x: float, y: float) -> None:
+        self.renderer.text(
+            str(value), float(x), float(y), self.state.style, self.state.transform.matrix
+        )
+
+    def text_size(self, size: float | None = None) -> float:
+        if size is not None:
+            if size <= 0:
+                raise ArgumentValidationError("text_size() must be positive.")
+            self.state.style.text_size = float(size)
+        return self.state.style.text_size
+
+    def text_font(self, font: Font | str | None = None) -> Font:
+        if font is not None:
+            if isinstance(font, str):
+                font = Font(name=font)
+            self.state.style.text_font = font
+        return self.state.style.text_font
+
+    def text_style(self, style: str | None = None) -> str:
+        if style is not None:
+            if style not in {c.NORMAL, c.ITALIC, c.BOLD, c.BOLDITALIC}:
+                raise ArgumentValidationError(f"Unsupported text style {style!r}.")
+            self.state.style.text_style = style
+        return self.state.style.text_style
+
+    def text_align(self, horizontal: str, vertical: str | None = None) -> None:
+        if horizontal not in {c.LEFT, c.CENTER, c.RIGHT}:
+            raise ArgumentValidationError(f"Unsupported horizontal text alignment {horizontal!r}.")
+        if vertical is not None and vertical not in {c.TOP, c.CENTER, c.BOTTOM, c.BASELINE}:
+            raise ArgumentValidationError(f"Unsupported vertical text alignment {vertical!r}.")
+        self.state.style.text_align_x = horizontal
+        if vertical is not None:
+            self.state.style.text_align_y = vertical
+
+    def text_leading(self, value: float | None = None) -> float:
+        if value is not None:
+            if value <= 0:
+                raise ArgumentValidationError("text_leading() must be positive.")
+            self.state.style.text_leading = float(value)
+        return self.state.style.text_leading
+
+    def text_width(self, value: object) -> float:
+        return self.renderer.text_width(str(value), self.state.style)
+
+    def text_ascent(self) -> float:
+        return self.renderer.text_ascent(self.state.style)
+
+    def text_descent(self) -> float:
+        return self.renderer.text_descent(self.state.style)
 
     def load_pixels(self) -> list[int]:
         return self.renderer.load_pixels()

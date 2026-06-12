@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from math import cos, pi, sin
 from pathlib import Path
+from typing import cast
 
-from PIL import Image, ImageDraw
+from PIL import Image as PILImage
+from PIL import ImageDraw
 
 from p5_py import constants as c
+from p5_py.assets.image import Image
 from p5_py.core.color import Color
 from p5_py.core.state import StyleState
 from p5_py.core.transform import Matrix2D
@@ -44,7 +47,7 @@ class PillowRenderer:
         self.pixel_density = float(pixel_density)
         self.physical_width = max(1, int(round(self.width * self.pixel_density)))
         self.physical_height = max(1, int(round(self.height * self.pixel_density)))
-        self.image = Image.new("RGBA", (self.physical_width, self.physical_height), (0, 0, 0, 0))
+        self.image = PILImage.new("RGBA", (self.physical_width, self.physical_height), (0, 0, 0, 0))
         self.draw = ImageDraw.Draw(self.image, "RGBA")
 
     def begin_frame(self) -> None:
@@ -59,7 +62,7 @@ class PillowRenderer:
         )
 
     def clear(self) -> None:
-        self.image = Image.new("RGBA", (self.physical_width, self.physical_height), (0, 0, 0, 0))
+        self.image = PILImage.new("RGBA", (self.physical_width, self.physical_height), (0, 0, 0, 0))
         self.draw = ImageDraw.Draw(self.image, "RGBA")
 
     def point(self, x: float, y: float, style: StyleState, transform: Matrix2D) -> None:
@@ -182,6 +185,92 @@ class PillowRenderer:
             joint="curve",
         )
 
+    def draw_image(
+        self,
+        image: Image,
+        dx: float,
+        dy: float,
+        dw: float,
+        dh: float,
+        style: StyleState,
+        transform: Matrix2D,
+        *,
+        source: tuple[int, int, int, int] | None = None,
+    ) -> None:
+        del style
+        source_image = image.pillow
+        if source is not None:
+            sx, sy, sw, sh = source
+            source_image = source_image.crop((sx, sy, sx + sw, sy + sh))
+        resized = source_image.resize(
+            (
+                max(1, int(round(dw * self.pixel_density))),
+                max(1, int(round(dh * self.pixel_density))),
+            ),
+            PILImage.Resampling.LANCZOS,
+        )
+        physical_transform = self._physical_transform(transform)
+        px, py = physical_transform.transform_point(dx, dy)
+        self.image.alpha_composite(resized, (int(round(px)), int(round(py))))
+        self.draw = ImageDraw.Draw(self.image, "RGBA")
+
+    def text(
+        self,
+        value: str,
+        x: float,
+        y: float,
+        style: StyleState,
+        transform: Matrix2D,
+    ) -> None:
+        if style.fill_color is None:
+            return
+        font = style.text_font.pillow_font(style.text_size * self.pixel_density)
+        lines = str(value).splitlines() or [""]
+        physical_transform = self._physical_transform(transform)
+        for line_index, line in enumerate(lines):
+            px, py = physical_transform.transform_point(
+                x,
+                y + line_index * style.text_leading,
+            )
+            bbox = self.draw.textbbox((0, 0), line, font=font)
+            width = bbox[2] - bbox[0]
+            height = bbox[3] - bbox[1]
+            if style.text_align_x == c.CENTER:
+                px -= width / 2
+            elif style.text_align_x == c.RIGHT:
+                px -= width
+            if style.text_align_y == c.CENTER:
+                py -= height / 2
+            elif style.text_align_y == c.BOTTOM:
+                py -= height
+            elif style.text_align_y == c.BASELINE:
+                py -= self.text_ascent(style)
+            self.draw.text((px, py), line, fill=style.fill_color.to_tuple(), font=font)
+
+    def text_width(self, value: str, style: StyleState) -> float:
+        font = style.text_font.pillow_font(style.text_size * self.pixel_density)
+        lines = str(value).splitlines() or [""]
+        return max(
+            (self.draw.textlength(line, font=font) / self.pixel_density for line in lines),
+            default=0.0,
+        )
+
+    def text_ascent(self, style: StyleState) -> float:
+        font = style.text_font.pillow_font(style.text_size * self.pixel_density)
+        getmetrics = getattr(font, "getmetrics", None)
+        if callable(getmetrics):
+            ascent, _descent = cast(tuple[int, int], getmetrics())
+            return ascent / self.pixel_density
+        return style.text_size * 0.8
+
+    def text_descent(self, style: StyleState) -> float:
+        font = style.text_font.pillow_font(style.text_size * self.pixel_density)
+        getmetrics = getattr(font, "getmetrics", None)
+        if callable(getmetrics):
+            _ascent, descent = cast(tuple[int, int], getmetrics())
+            return descent / self.pixel_density
+        return style.text_size * 0.2
+
     def load_pixels(self) -> list[int]:
         return list(self.image.tobytes())
 
@@ -191,7 +280,7 @@ class PillowRenderer:
             raise ArgumentValidationError(
                 f"Pixel buffer length must be {expected}, got {len(pixels)}."
             )
-        self.image = Image.frombytes(
+        self.image = PILImage.frombytes(
             "RGBA",
             (self.physical_width, self.physical_height),
             bytes(pixels),
@@ -201,7 +290,7 @@ class PillowRenderer:
     def save(self, path: str | Path) -> None:
         self.image.save(path)
 
-    def get_image(self) -> Image.Image:
+    def get_image(self) -> PILImage.Image:
         return self.image
 
     def _physical_transform(self, transform: Matrix2D) -> Matrix2D:

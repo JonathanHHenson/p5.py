@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field, replace
 
 from p5_py import constants as c
+from p5_py.assets.text import DEFAULT_FONT, Font
 from p5_py.core.color import Color
 from p5_py.core.transform import Matrix2D
 from p5_py.events.input_state import InputState
@@ -36,7 +37,14 @@ class StyleState:
     stroke_join: str = c.MITER
     rect_mode: str = c.CORNER
     ellipse_mode: str = c.CENTER
+    image_mode: str = c.CORNER
     blend_mode: str = c.BLEND
+    text_font: Font = field(default_factory=lambda: DEFAULT_FONT)
+    text_size: float = 12.0
+    text_style: str = c.NORMAL
+    text_align_x: str = c.LEFT
+    text_align_y: str = c.BASELINE
+    text_leading: float = 14.0
 
     def copy(self) -> StyleState:
         return replace(self)

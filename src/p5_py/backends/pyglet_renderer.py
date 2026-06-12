@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from p5_py import constants as c
+from p5_py.assets.image import Image
 from p5_py.core.color import Color
 from p5_py.core.state import StyleState
 from p5_py.core.transform import Matrix2D
@@ -175,6 +176,51 @@ class PygletRenderer:
                     for px, py in arc_points
                 ]
                 self._joined_polyline(transformed, style, closed=False)
+
+    def draw_image(
+        self,
+        image: Image,
+        dx: float,
+        dy: float,
+        dw: float,
+        dh: float,
+        style: StyleState,
+        transform: Matrix2D,
+        *,
+        source: tuple[int, int, int, int] | None = None,
+    ) -> None:
+        raise BackendCapabilityError(
+            "image() is not supported by the native Pyglet renderer yet. "
+            "Use the headless backend for deterministic image drawing."
+        )
+
+    def text(
+        self,
+        value: str,
+        x: float,
+        y: float,
+        style: StyleState,
+        transform: Matrix2D,
+    ) -> None:
+        raise BackendCapabilityError(
+            "text() is not supported by the native Pyglet renderer yet. "
+            "Use the headless backend for deterministic text drawing."
+        )
+
+    def text_width(self, value: str, style: StyleState) -> float:
+        raise BackendCapabilityError(
+            "text_width() is not supported by the native Pyglet renderer yet."
+        )
+
+    def text_ascent(self, style: StyleState) -> float:
+        raise BackendCapabilityError(
+            "text_ascent() is not supported by the native Pyglet renderer yet."
+        )
+
+    def text_descent(self, style: StyleState) -> float:
+        raise BackendCapabilityError(
+            "text_descent() is not supported by the native Pyglet renderer yet."
+        )
 
     def load_pixels(self) -> list[int]:
         raise BackendCapabilityError(

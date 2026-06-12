@@ -24,3 +24,6 @@ On Retina/HiDPI displays, the Pyglet backend renders to a higher-resolution back
 - `bouncing_ball.py` demonstrates animation state, frame drawing, and simple physics.
 - `transforms.py` demonstrates `push`, `pop`, `translate`, `rotate`, `scale`, and angle mode.
 - `custom_shape.py` demonstrates `begin_shape`, `vertex`, `quadratic_vertex`, `bezier`, and shape export.
+- `vector_noise_flow.py` demonstrates `Vector`, `create_vector`, seeded `random`, `noise`, `map_value`, angle mode, and animation.
+- `image_text_data.py` demonstrates `Image`, `create_image`, image pixel edits, image filters, text drawing/metrics, `load_json`, `save_json`, `load_strings`, and `save_strings`. This example defaults to `headless` because image/text drawing is currently implemented by the Pillow renderer.
+- `color_style_filters.py` demonstrates RGB/HSB color modes, `lerp_color`, stroke caps/joins, `image_mode`, and image filters. This example defaults to `headless` because image/text drawing is currently implemented by the Pillow renderer.

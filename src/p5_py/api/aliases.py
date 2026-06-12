@@ -15,10 +15,15 @@ from p5_py.api.global_mode import (
     end_shape,
     frame_count,
     frame_rate,
+    image_mode,
     is_looping,
     key_is_down,
     lerp_color,
+    load_font,
+    load_image,
+    load_json,
     load_pixels,
+    load_strings,
     mouse_x,
     mouse_y,
     no_fill,
@@ -32,9 +37,21 @@ from p5_py.api.global_mode import (
     reset_matrix,
     resize_canvas,
     save_canvas,
+    save_json,
+    save_strings,
     shear_x,
     shear_y,
+    stroke_cap,
+    stroke_join,
     stroke_weight,
+    text_align,
+    text_ascent,
+    text_descent,
+    text_font,
+    text_leading,
+    text_size,
+    text_style,
+    text_width,
     update_pixels,
 )
 
@@ -45,8 +62,11 @@ lerpColor = lerp_color
 noFill = no_fill
 noStroke = no_stroke
 strokeWeight = stroke_weight
+strokeCap = stroke_cap
+strokeJoin = stroke_join
 ellipseMode = ellipse_mode
 rectMode = rect_mode
+imageMode = image_mode
 beginShape = begin_shape
 endShape = end_shape
 bezierVertex = bezier_vertex
@@ -71,6 +91,20 @@ pmouseY = pmouse_y
 loadPixels = load_pixels
 updatePixels = update_pixels
 saveCanvas = save_canvas
+loadImage = load_image
+loadFont = load_font
+loadStrings = load_strings
+saveStrings = save_strings
+loadJSON = load_json
+saveJSON = save_json
+textSize = text_size
+textFont = text_font
+textStyle = text_style
+textAlign = text_align
+textLeading = text_leading
+textWidth = text_width
+textAscent = text_ascent
+textDescent = text_descent
 bezierPoint = bezier_point
 bezierTangent = bezier_tangent
 
@@ -82,8 +116,11 @@ __all__ = [
     "noFill",
     "noStroke",
     "strokeWeight",
+    "strokeCap",
+    "strokeJoin",
     "ellipseMode",
     "rectMode",
+    "imageMode",
     "beginShape",
     "endShape",
     "bezierVertex",
@@ -108,6 +145,20 @@ __all__ = [
     "loadPixels",
     "updatePixels",
     "saveCanvas",
+    "loadImage",
+    "loadFont",
+    "loadStrings",
+    "saveStrings",
+    "loadJSON",
+    "saveJSON",
+    "textSize",
+    "textFont",
+    "textStyle",
+    "textAlign",
+    "textLeading",
+    "textWidth",
+    "textAscent",
+    "textDescent",
     "bezierPoint",
     "bezierTangent",
 ]

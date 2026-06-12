@@ -8,8 +8,36 @@ from contextlib import contextmanager
 from typing import Any
 
 from p5_py.api.current import require_context
+from p5_py.assets.data import load_json, load_strings, save_json, save_strings
+from p5_py.assets.image import create_image, load_image
+from p5_py.assets.text import load_font
 from p5_py.core import geometry as _geometry
+from p5_py.core.math import (
+    acos,
+    asin,
+    atan,
+    atan2,
+    constrain,
+    cos,
+    degrees,
+    dist,
+    fract,
+    lerp,
+    mag,
+    map_value,
+    max_value,
+    min_value,
+    norm,
+    radians,
+    sin,
+    sq,
+    tan,
+)
+from p5_py.core.random import noise, noise_detail, noise_seed, random, random_gaussian, random_seed
+from p5_py.core.vector import create_vector
 from p5_py.sketch import FunctionSketch
+
+map = map_value
 
 
 def run(
@@ -96,12 +124,24 @@ def stroke_weight(weight: float) -> None:
     require_context().stroke_weight(weight)
 
 
+def stroke_cap(cap: str) -> None:
+    require_context().stroke_cap(cap)
+
+
+def stroke_join(join: str) -> None:
+    require_context().stroke_join(join)
+
+
 def rect_mode(mode: str) -> None:
     require_context().rect_mode(mode)
 
 
 def ellipse_mode(mode: str) -> None:
     require_context().ellipse_mode(mode)
+
+
+def image_mode(mode: str) -> None:
+    require_context().image_mode(mode)
 
 
 def point(x: float, y: float) -> None:
@@ -274,6 +314,46 @@ def key_is_down(key_code: int) -> bool:
     return require_context().key_is_down(key_code)
 
 
+def image(*args: Any) -> None:
+    require_context().image(*args)
+
+
+def text(value: object, x: float, y: float) -> None:
+    require_context().text(value, x, y)
+
+
+def text_size(size: float | None = None) -> float:
+    return require_context().text_size(size)
+
+
+def text_font(font: Any | None = None):
+    return require_context().text_font(font)
+
+
+def text_style(style: str | None = None) -> str:
+    return require_context().text_style(style)
+
+
+def text_align(horizontal: str, vertical: str | None = None) -> None:
+    require_context().text_align(horizontal, vertical)
+
+
+def text_leading(value: float | None = None) -> float:
+    return require_context().text_leading(value)
+
+
+def text_width(value: object) -> float:
+    return require_context().text_width(value)
+
+
+def text_ascent() -> float:
+    return require_context().text_ascent()
+
+
+def text_descent() -> float:
+    return require_context().text_descent()
+
+
 def load_pixels() -> list[int]:
     return require_context().load_pixels()
 
@@ -304,8 +384,11 @@ __all__ = [
     "stroke",
     "no_stroke",
     "stroke_weight",
+    "stroke_cap",
+    "stroke_join",
     "rect_mode",
     "ellipse_mode",
+    "image_mode",
     "point",
     "line",
     "rect",
@@ -347,6 +430,51 @@ __all__ = [
     "pmouse_x",
     "pmouse_y",
     "key_is_down",
+    "image",
+    "image_mode",
+    "text",
+    "text_size",
+    "text_font",
+    "text_style",
+    "text_align",
+    "text_leading",
+    "text_width",
+    "text_ascent",
+    "text_descent",
+    "load_image",
+    "create_image",
+    "load_font",
+    "load_strings",
+    "save_strings",
+    "load_json",
+    "save_json",
+    "create_vector",
+    "map_value",
+    "map",
+    "constrain",
+    "norm",
+    "lerp",
+    "dist",
+    "mag",
+    "radians",
+    "degrees",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "atan2",
+    "sq",
+    "fract",
+    "min_value",
+    "max_value",
+    "random",
+    "random_seed",
+    "random_gaussian",
+    "noise",
+    "noise_seed",
+    "noise_detail",
     "load_pixels",
     "update_pixels",
     "save_canvas",

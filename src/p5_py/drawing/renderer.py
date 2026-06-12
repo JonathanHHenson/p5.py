@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
+from p5_py.assets.image import Image
 from p5_py.core.color import Color
 from p5_py.core.state import StyleState
 from p5_py.core.transform import Matrix2D
@@ -70,6 +71,34 @@ class Renderer(Protocol):
         style: StyleState,
         transform: Matrix2D,
     ) -> None: ...
+
+    def draw_image(
+        self,
+        image: Image,
+        dx: float,
+        dy: float,
+        dw: float,
+        dh: float,
+        style: StyleState,
+        transform: Matrix2D,
+        *,
+        source: tuple[int, int, int, int] | None = None,
+    ) -> None: ...
+
+    def text(
+        self,
+        value: str,
+        x: float,
+        y: float,
+        style: StyleState,
+        transform: Matrix2D,
+    ) -> None: ...
+
+    def text_width(self, value: str, style: StyleState) -> float: ...
+
+    def text_ascent(self, style: StyleState) -> float: ...
+
+    def text_descent(self, style: StyleState) -> float: ...
 
     def load_pixels(self) -> list[int]: ...
 

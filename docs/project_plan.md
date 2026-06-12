@@ -174,7 +174,17 @@ crates/
       vector.rs
 ```
 
-## 5. Runtime design
+## 5. Current API coverage
+
+The 040-060 backlog epics are implemented for the deterministic headless/Pillow path:
+
+- Color, style, constants, and transform APIs include RGB/HSB/HSL color modes, style stacks, stroke/fill mutation, affine transforms, angle modes, and p5-style aliases.
+- Math, random, noise, and vector APIs include p5-style helpers, seedable random/gaussian values, deterministic Perlin-style noise, and mutable `Vector` objects with Python operators.
+- Assets include local image loading, `Image` manipulation (`get`, `set`, `copy`, `resize`, `mask`, and common filters), image drawing with `image_mode`, lightweight text/JSON helpers, font loading, text drawing, alignment, leading, and metrics.
+
+The native Pyglet renderer currently capability-gates image, text, pixel-read/write, and export APIs. Use the headless backend for deterministic image/text/pixel workflows until native support is added.
+
+## 6. Runtime design
 
 ### Sketch modes
 

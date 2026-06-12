@@ -89,7 +89,7 @@ Responsible for:
 - fill and stroke rendering
 - transform application
 - HiDPI coordinate mapping
-- image/text support when those epics are implemented
+- capability errors for APIs that are not implemented natively yet
 - pixel/export capability handling
 
 ## Rendering approach options
@@ -180,11 +180,14 @@ The renderer tracks both logical dimensions and physical framebuffer dimensions 
 
 The native renderer capability-gates these APIs in the first milestone:
 
+- `image`
+- `text`
+- `text_width`, `text_ascent`, and `text_descent`
 - `load_pixels`
 - `update_pixels`
 - `save_canvas`
 
-They raise `BackendCapabilityError` with guidance to use the headless backend. Pillow remains the canonical deterministic path for headless rendering, image export, and golden tests.
+They raise `BackendCapabilityError` with guidance to use the headless backend. Pillow remains the canonical deterministic path for image drawing, text rendering, pixel reads/writes, image export, and golden tests.
 
 Future native support can use framebuffer readback for `load_pixels` and `save_canvas`, and either texture upload/update or an explicit documented limitation for `update_pixels`.
 

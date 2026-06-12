@@ -35,12 +35,16 @@ PROJECT = "project"
 MITER = "miter"
 BEVEL = "bevel"
 
-# Text alignment
+# Text alignment and style
 LEFT = "left"
 RIGHT = "right"
 TOP = "top"
 BOTTOM = "bottom"
 BASELINE = "baseline"
+NORMAL = "normal"
+ITALIC = "italic"
+BOLD = "bold"
+BOLDITALIC = "bolditalic"
 
 # Renderers / backends
 P2D = "p2d"
@@ -60,9 +64,77 @@ MULTIPLY = "multiply"
 SCREEN = "screen"
 REPLACE = "replace"
 
+# Image filters
+THRESHOLD = "threshold"
+GRAY = "gray"
+INVERT = "invert"
+BLUR = "blur"
+POSTERIZE = "posterize"
+ERODE = "erode"
+DILATE = "dilate"
+
 # Mouse buttons
 LEFT_BUTTON = "left"
 CENTER_BUTTON = "center"
 RIGHT_BUTTON = "right"
 
-__all__ = [name for name in globals() if name.isupper()]
+__all__ = [
+    "CORNER",
+    "CORNERS",
+    "CENTER",
+    "RADIUS",
+    "OPEN",
+    "CLOSE",
+    "CHORD",
+    "PIE",
+    "POINTS",
+    "LINES",
+    "TRIANGLES",
+    "TRIANGLE_STRIP",
+    "TRIANGLE_FAN",
+    "QUADS",
+    "QUAD_STRIP",
+    "RADIANS",
+    "DEGREES",
+    "RGB",
+    "HSB",
+    "HSL",
+    "ROUND",
+    "SQUARE",
+    "PROJECT",
+    "MITER",
+    "BEVEL",
+    "LEFT",
+    "RIGHT",
+    "TOP",
+    "BOTTOM",
+    "BASELINE",
+    "NORMAL",
+    "ITALIC",
+    "BOLD",
+    "BOLDITALIC",
+    "P2D",
+    "WEBGL",
+    "HEADLESS",
+    "PYGLET",
+    "PILLOW",
+    "BLEND",
+    "ADD",
+    "DARKEST",
+    "LIGHTEST",
+    "DIFFERENCE",
+    "EXCLUSION",
+    "MULTIPLY",
+    "SCREEN",
+    "REPLACE",
+    "THRESHOLD",
+    "GRAY",
+    "INVERT",
+    "BLUR",
+    "POSTERIZE",
+    "ERODE",
+    "DILATE",
+    "LEFT_BUTTON",
+    "CENTER_BUTTON",
+    "RIGHT_BUTTON",
+]
