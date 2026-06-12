@@ -104,4 +104,12 @@ class Renderer(Protocol):
 
     def update_pixels(self, pixels: list[int]) -> None: ...
 
+    def blend_region(
+        self,
+        source_image: object | None,
+        source: tuple[int, int, int, int],
+        destination: tuple[int, int, int, int],
+        mode: str,
+    ) -> None: ...
+
     def save(self, path: str | Path) -> None: ...

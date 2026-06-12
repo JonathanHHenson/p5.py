@@ -261,6 +261,18 @@ class PygletRenderer:
             "Use the headless backend for pixel-buffer workflows."
         )
 
+    def blend_region(
+        self,
+        source_image: object | None,
+        source: tuple[int, int, int, int],
+        destination: tuple[int, int, int, int],
+        mode: str,
+    ) -> None:
+        raise BackendCapabilityError(
+            "blend() region compositing is not supported by the native Pyglet renderer yet. "
+            "Use the headless backend for deterministic blend-mode workflows."
+        )
+
     def save(self, path: str | Path) -> None:
         image = PILImage.frombytes(
             "RGBA",

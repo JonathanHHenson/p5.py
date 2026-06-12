@@ -14,7 +14,19 @@ class HeadlessBackend:
         pixels=True,
         paths=True,
         transforms=True,
-        blend_modes=frozenset({c.BLEND, c.REPLACE}),
+        blend_modes=frozenset(
+            {
+                c.BLEND,
+                c.REPLACE,
+                c.ADD,
+                c.DARKEST,
+                c.LIGHTEST,
+                c.DIFFERENCE,
+                c.EXCLUSION,
+                c.MULTIPLY,
+                c.SCREEN,
+            }
+        ),
     )
 
     def __init__(self) -> None:

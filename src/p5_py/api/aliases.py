@@ -7,29 +7,42 @@ from p5_py.api.global_mode import (
     bezier_point,
     bezier_tangent,
     bezier_vertex,
+    blend,
+    blend_mode,
     color_mode,
     create_canvas,
     delta_time,
     display_density,
     ellipse_mode,
     end_shape,
+    erase,
     frame_count,
     frame_rate,
     image_mode,
     is_looping,
+    key,
+    key_code,
     key_is_down,
+    key_is_pressed,
     lerp_color,
     load_font,
     load_image,
     load_json,
     load_pixels,
     load_strings,
+    mouse_button,
+    mouse_is_pressed,
     mouse_x,
     mouse_y,
+    moved_x,
+    moved_y,
+    no_erase,
     no_fill,
     no_loop,
     no_stroke,
+    pixel_array,
     pixel_density,
+    pixels,
     pmouse_x,
     pmouse_y,
     quadratic_vertex,
@@ -52,6 +65,7 @@ from p5_py.api.global_mode import (
     text_size,
     text_style,
     text_width,
+    touches,
     update_pixels,
 )
 
@@ -108,6 +122,16 @@ textDescent = text_descent
 bezierPoint = bezier_point
 bezierTangent = bezier_tangent
 
+blendMode = blend_mode
+noErase = no_erase
+mouseIsPressed = mouse_is_pressed
+mouseButton = mouse_button
+movedX = moved_x
+movedY = moved_y
+keyCode = key_code
+keyIsPressed = key_is_pressed
+pixelArray = pixel_array
+
 __all__ = [
     "createCanvas",
     "resizeCanvas",
@@ -161,4 +185,18 @@ __all__ = [
     "textDescent",
     "bezierPoint",
     "bezierTangent",
+    "touches",
+    "erase",
+    "blend",
+    "pixelArray",
+    "pixels",
+    "keyIsPressed",
+    "keyCode",
+    "key",
+    "movedY",
+    "movedX",
+    "mouseButton",
+    "mouseIsPressed",
+    "noErase",
+    "blendMode",
 ]

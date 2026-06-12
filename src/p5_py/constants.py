@@ -78,6 +78,26 @@ LEFT_BUTTON = "left"
 CENTER_BUTTON = "center"
 RIGHT_BUTTON = "right"
 
+# Keyboard keys and codes use Unicode code points for printable keys where possible.
+BACKSPACE = 8
+TAB = 9
+ENTER = 13
+RETURN = ENTER
+ESCAPE = 27
+SHIFT = 16
+CONTROL = 17
+ALT = 18
+OPTION = ALT
+UP_ARROW = 38
+DOWN_ARROW = 40
+LEFT_ARROW = 37
+RIGHT_ARROW = 39
+
+# Normalized touch callback/event names
+TOUCH_STARTED = "touch_started"
+TOUCH_MOVED = "touch_moved"
+TOUCH_ENDED = "touch_ended"
+
 __all__ = [
     "CORNER",
     "CORNERS",
@@ -137,4 +157,20 @@ __all__ = [
     "LEFT_BUTTON",
     "CENTER_BUTTON",
     "RIGHT_BUTTON",
+    "BACKSPACE",
+    "TAB",
+    "ENTER",
+    "RETURN",
+    "ESCAPE",
+    "SHIFT",
+    "CONTROL",
+    "ALT",
+    "OPTION",
+    "UP_ARROW",
+    "DOWN_ARROW",
+    "LEFT_ARROW",
+    "RIGHT_ARROW",
+    "TOUCH_STARTED",
+    "TOUCH_MOVED",
+    "TOUCH_ENDED",
 ]

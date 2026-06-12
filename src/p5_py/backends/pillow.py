@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import cast
 
 from PIL import Image as PILImage
-from PIL import ImageDraw
+from PIL import ImageChops, ImageDraw
 
 from p5_py import constants as c
 from p5_py.assets.image import Image
@@ -66,15 +66,18 @@ class PillowRenderer:
         self.draw = ImageDraw.Draw(self.image, "RGBA")
 
     def point(self, x: float, y: float, style: StyleState, transform: Matrix2D) -> None:
-        color = style.stroke_color or style.fill_color
-        if color is None:
-            return
-        tx, ty = self._physical_transform(transform).transform_point(x, y)
-        radius = max(0.5, style.stroke_weight * self.pixel_density / 2)
-        self.draw.ellipse(
-            (tx - radius, ty - radius, tx + radius, ty + radius),
-            fill=color.to_tuple(),
-        )
+        def draw_point() -> None:
+            color = style.stroke_color or style.fill_color
+            if color is None:
+                return
+            tx, ty = self._physical_transform(transform).transform_point(x, y)
+            radius = max(0.5, style.stroke_weight * self.pixel_density / 2)
+            self.draw.ellipse(
+                (tx - radius, ty - radius, tx + radius, ty + radius),
+                fill=color.to_tuple(),
+            )
+
+        self._draw_with_style(style, draw_point)
 
     def line(
         self,
@@ -85,16 +88,19 @@ class PillowRenderer:
         style: StyleState,
         transform: Matrix2D,
     ) -> None:
-        if style.stroke_color is None:
-            return
-        physical_transform = self._physical_transform(transform)
-        p1 = physical_transform.transform_point(x1, y1)
-        p2 = physical_transform.transform_point(x2, y2)
-        self.draw.line(
-            (*p1, *p2),
-            fill=style.stroke_color.to_tuple(),
-            width=_stroke_width(style, self.pixel_density),
-        )
+        def draw_line() -> None:
+            if style.stroke_color is None:
+                return
+            physical_transform = self._physical_transform(transform)
+            p1 = physical_transform.transform_point(x1, y1)
+            p2 = physical_transform.transform_point(x2, y2)
+            self.draw.line(
+                (*p1, *p2),
+                fill=style.stroke_color.to_tuple(),
+                width=_stroke_width(style, self.pixel_density),
+            )
+
+        self._draw_with_style(style, draw_line)
 
     def polygon(
         self,
@@ -104,18 +110,28 @@ class PillowRenderer:
         *,
         close: bool = True,
     ) -> None:
-        if not points:
-            return
-        physical_transform = self._physical_transform(transform)
-        transformed = [physical_transform.transform_point(x, y) for x, y in points]
-        if len(transformed) == 1:
-            self.point(points[0][0], points[0][1], style, transform)
-            return
-        if style.fill_color is not None and close and len(transformed) >= 3:
-            self.draw.polygon(transformed, fill=style.fill_color.to_tuple())
-        if style.stroke_color is not None:
-            stroke_points = [*transformed, transformed[0]] if close else transformed
-            self._draw_joined_polyline(stroke_points, style)
+        def draw_polygon() -> None:
+            if not points:
+                return
+            physical_transform = self._physical_transform(transform)
+            transformed = [physical_transform.transform_point(x, y) for x, y in points]
+            if len(transformed) == 1:
+                tx, ty = transformed[0]
+                radius = max(0.5, style.stroke_weight * self.pixel_density / 2)
+                color = style.stroke_color or style.fill_color
+                if color is not None:
+                    self.draw.ellipse(
+                        (tx - radius, ty - radius, tx + radius, ty + radius),
+                        fill=color.to_tuple(),
+                    )
+                return
+            if style.fill_color is not None and close and len(transformed) >= 3:
+                self.draw.polygon(transformed, fill=style.fill_color.to_tuple())
+            if style.stroke_color is not None:
+                stroke_points = [*transformed, transformed[0]] if close else transformed
+                self._draw_joined_polyline(stroke_points, style)
+
+        self._draw_with_style(style, draw_polygon)
 
     def ellipse(
         self,
@@ -197,22 +213,24 @@ class PillowRenderer:
         *,
         source: tuple[int, int, int, int] | None = None,
     ) -> None:
-        del style
-        source_image = image.pillow
-        if source is not None:
-            sx, sy, sw, sh = source
-            source_image = source_image.crop((sx, sy, sx + sw, sy + sh))
-        resized = source_image.resize(
-            (
-                max(1, int(round(dw * self.pixel_density))),
-                max(1, int(round(dh * self.pixel_density))),
-            ),
-            PILImage.Resampling.LANCZOS,
-        )
-        physical_transform = self._physical_transform(transform)
-        px, py = physical_transform.transform_point(dx, dy)
-        self.image.alpha_composite(resized, (int(round(px)), int(round(py))))
-        self.draw = ImageDraw.Draw(self.image, "RGBA")
+        def draw_image_op() -> None:
+            source_image = image.pillow
+            if source is not None:
+                sx, sy, sw, sh = source
+                source_image = source_image.crop((sx, sy, sx + sw, sy + sh))
+            resized = source_image.resize(
+                (
+                    max(1, int(round(dw * self.pixel_density))),
+                    max(1, int(round(dh * self.pixel_density))),
+                ),
+                PILImage.Resampling.LANCZOS,
+            )
+            physical_transform = self._physical_transform(transform)
+            px, py = physical_transform.transform_point(dx, dy)
+            self.image.alpha_composite(resized, (int(round(px)), int(round(py))))
+            self.draw = ImageDraw.Draw(self.image, "RGBA")
+
+        self._draw_with_style(style, draw_image_op)
 
     def text(
         self,
@@ -222,30 +240,33 @@ class PillowRenderer:
         style: StyleState,
         transform: Matrix2D,
     ) -> None:
-        if style.fill_color is None:
-            return
-        font = style.text_font.pillow_font(style.text_size * self.pixel_density)
-        lines = str(value).splitlines() or [""]
-        physical_transform = self._physical_transform(transform)
-        for line_index, line in enumerate(lines):
-            px, py = physical_transform.transform_point(
-                x,
-                y + line_index * style.text_leading,
-            )
-            bbox = self.draw.textbbox((0, 0), line, font=font)
-            width = bbox[2] - bbox[0]
-            height = bbox[3] - bbox[1]
-            if style.text_align_x == c.CENTER:
-                px -= width / 2
-            elif style.text_align_x == c.RIGHT:
-                px -= width
-            if style.text_align_y == c.CENTER:
-                py -= height / 2
-            elif style.text_align_y == c.BOTTOM:
-                py -= height
-            elif style.text_align_y == c.BASELINE:
-                py -= self.text_ascent(style)
-            self.draw.text((px, py), line, fill=style.fill_color.to_tuple(), font=font)
+        def draw_text() -> None:
+            if style.fill_color is None:
+                return
+            font = style.text_font.pillow_font(style.text_size * self.pixel_density)
+            lines = str(value).splitlines() or [""]
+            physical_transform = self._physical_transform(transform)
+            for line_index, line in enumerate(lines):
+                px, py = physical_transform.transform_point(
+                    x,
+                    y + line_index * style.text_leading,
+                )
+                bbox = self.draw.textbbox((0, 0), line, font=font)
+                width = bbox[2] - bbox[0]
+                height = bbox[3] - bbox[1]
+                if style.text_align_x == c.CENTER:
+                    px -= width / 2
+                elif style.text_align_x == c.RIGHT:
+                    px -= width
+                if style.text_align_y == c.CENTER:
+                    py -= height / 2
+                elif style.text_align_y == c.BOTTOM:
+                    py -= height
+                elif style.text_align_y == c.BASELINE:
+                    py -= self.text_ascent(style)
+                self.draw.text((px, py), line, fill=style.fill_color.to_tuple(), font=font)
+
+        self._draw_with_style(style, draw_text)
 
     def text_width(self, value: str, style: StyleState) -> float:
         font = style.text_font.pillow_font(style.text_size * self.pixel_density)
@@ -293,9 +314,92 @@ class PillowRenderer:
     def get_image(self) -> PILImage.Image:
         return self.image
 
+    def blend_region(
+        self,
+        source_image: PILImage.Image | None,
+        source: tuple[int, int, int, int],
+        destination: tuple[int, int, int, int],
+        mode: str,
+    ) -> None:
+        sx, sy, sw, sh = source
+        dx, dy, dw, dh = destination
+        if sw <= 0 or sh <= 0 or dw <= 0 or dh <= 0:
+            return
+        image = self.image if source_image is None else source_image.convert("RGBA")
+        crop = image.crop((sx, sy, sx + sw, sy + sh)).resize((dw, dh), PILImage.Resampling.LANCZOS)
+        overlay = PILImage.new("RGBA", self.image.size, (0, 0, 0, 0))
+        overlay.alpha_composite(crop, (dx, dy))
+        self._composite_overlay(overlay, mode)
+
+    def _draw_with_style(self, style: StyleState, draw_op) -> None:
+        original = self.image
+        original_draw = self.draw
+        overlay = PILImage.new("RGBA", self.image.size, (0, 0, 0, 0))
+        self.image = overlay
+        self.draw = ImageDraw.Draw(overlay, "RGBA")
+        draw_op()
+        self.image = original
+        self.draw = original_draw
+        if style.erasing:
+            self._erase_overlay(overlay)
+        else:
+            self._composite_overlay(overlay, style.blend_mode)
+
+    def _erase_overlay(self, overlay: PILImage.Image) -> None:
+        base_r, base_g, base_b, base_a = self.image.split()
+        overlay_alpha = overlay.getchannel("A")
+        new_alpha = ImageChops.subtract(base_a, overlay_alpha)
+        self.image = PILImage.merge("RGBA", (base_r, base_g, base_b, new_alpha))
+        self.draw = ImageDraw.Draw(self.image, "RGBA")
+
+    def _composite_overlay(self, overlay: PILImage.Image, mode: str) -> None:
+        if mode == c.BLEND:
+            self.image.alpha_composite(overlay)
+        elif mode == c.REPLACE:
+            self.image.paste(overlay, (0, 0), overlay.getchannel("A"))
+        else:
+            blended = self._blend_images(self.image, overlay, mode)
+            self.image = PILImage.composite(blended, self.image, overlay.getchannel("A"))
+        self.draw = ImageDraw.Draw(self.image, "RGBA")
+
+    def _blend_images(
+        self, base: PILImage.Image, overlay: PILImage.Image, mode: str
+    ) -> PILImage.Image:
+        base_rgb = base.convert("RGB")
+        overlay_rgb = overlay.convert("RGB")
+        if mode == c.ADD:
+            rgb = ImageChops.add(base_rgb, overlay_rgb)
+        elif mode == c.DARKEST:
+            rgb = ImageChops.darker(base_rgb, overlay_rgb)
+        elif mode == c.LIGHTEST:
+            rgb = ImageChops.lighter(base_rgb, overlay_rgb)
+        elif mode == c.DIFFERENCE:
+            rgb = ImageChops.difference(base_rgb, overlay_rgb)
+        elif mode == c.EXCLUSION:
+            rgb = _exclusion(base_rgb, overlay_rgb)
+        elif mode == c.MULTIPLY:
+            rgb = ImageChops.multiply(base_rgb, overlay_rgb)
+        elif mode == c.SCREEN:
+            rgb = ImageChops.screen(base_rgb, overlay_rgb)
+        else:
+            raise ArgumentValidationError(f"Unsupported blend mode {mode!r}.")
+        result = rgb.convert("RGBA")
+        result.putalpha(base.getchannel("A"))
+        return result
+
     def _physical_transform(self, transform: Matrix2D) -> Matrix2D:
         return Matrix2D.scaling(self.pixel_density).multiply(transform)
 
 
 def _angle_steps(count: int):
     return (2 * pi * index / count for index in range(count))
+
+
+def _exclusion(base: PILImage.Image, overlay: PILImage.Image) -> PILImage.Image:
+    base_bytes = base.tobytes()
+    overlay_bytes = overlay.tobytes()
+    out = bytes(
+        max(0, min(255, b + o - 2 * b * o // 255))
+        for b, o in zip(base_bytes, overlay_bytes, strict=True)
+    )
+    return PILImage.frombytes("RGB", base.size, out)

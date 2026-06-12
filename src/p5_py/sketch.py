@@ -176,6 +176,27 @@ class Sketch:
     def frame_count(self) -> int:
         return self._ctx.frame_count
 
+    def load_pixels(self) -> list[int]:
+        return self._ctx.load_pixels()
+
+    def update_pixels(self, pixels: list[int] | None = None) -> None:
+        self._ctx.update_pixels(pixels)
+
+    def save_canvas(self, *args: Any, **kwargs: Any):
+        return self._ctx.save_canvas(*args, **kwargs)
+
+    def blend_mode(self, mode: str) -> None:
+        self._ctx.blend_mode(mode)
+
+    def blend(self, *args: object) -> None:
+        self._ctx.blend(*args)
+
+    def erase(self) -> None:
+        self._ctx.erase()
+
+    def no_erase(self) -> None:
+        self._ctx.no_erase()
+
     @property
     def mouse_x(self) -> float:
         return self._ctx.mouse_x
@@ -183,6 +204,33 @@ class Sketch:
     @property
     def mouse_y(self) -> float:
         return self._ctx.mouse_y
+
+    @property
+    def pmouse_x(self) -> float:
+        return self._ctx.pmouse_x
+
+    @property
+    def pmouse_y(self) -> float:
+        return self._ctx.pmouse_y
+
+    @property
+    def mouse_is_pressed(self) -> bool:
+        return self._ctx.mouse_is_pressed
+
+    @property
+    def key(self) -> str | None:
+        return self._ctx.key
+
+    @property
+    def key_code(self) -> int | None:
+        return self._ctx.key_code
+
+    @property
+    def key_is_pressed(self) -> bool:
+        return self._ctx.key_is_pressed
+
+    def key_is_down(self, key_code: int) -> bool:
+        return self._ctx.key_is_down(key_code)
 
     @property
     def _ctx(self) -> SketchContext:

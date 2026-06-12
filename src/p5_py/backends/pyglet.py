@@ -21,6 +21,9 @@ class PygletBackend:
         pixel_readback=True,
         pixel_update=False,
         canvas_export=True,
+        mouse=True,
+        keyboard=True,
+        touch=False,
         paths=True,
         transforms=True,
         blend_modes=frozenset({c.BLEND, c.REPLACE}),
@@ -137,6 +140,26 @@ class PygletBackend:
 
         return self._pyglet
 
+    def _normalize_mouse_button(self, button: object) -> str:
+        pyglet = self._load_pyglet()
+        mouse = getattr(pyglet.window, "mouse", None)
+        if mouse is not None:
+            if button == getattr(mouse, "LEFT", object()):
+                return c.LEFT_BUTTON
+            if button == getattr(mouse, "MIDDLE", object()):
+                return c.CENTER_BUTTON
+            if button == getattr(mouse, "RIGHT", object()):
+                return c.RIGHT_BUTTON
+        return str(button)
+
+    def _logical_pointer_position(self, x: float, y: float) -> tuple[float, float]:
+        density = self.renderer.pixel_density
+        return float(x) / density, self.renderer.height - float(y) / density
+
+    def _logical_pointer_delta(self, dx: float, dy: float) -> tuple[float, float]:
+        density = self.renderer.pixel_density
+        return float(dx) / density, -float(dy) / density
+
     def _install_handlers(self, sketch) -> None:
         window = self._window
         if window is None:
@@ -155,71 +178,114 @@ class PygletBackend:
 
         @window.event
         def on_mouse_motion(x, y, dx, dy):
-            event = MouseEvent(x=x, y=self.renderer.height - y, dx=dx, dy=-dy, type="mouse_moved")
-            sketch.context.update_mouse_event(event)
-            sketch._dispatch_callback("mouse_moved", event)
+            logical_x, logical_y = self._logical_pointer_position(x, y)
+            logical_dx, logical_dy = self._logical_pointer_delta(dx, dy)
+            event = MouseEvent(
+                x=logical_x,
+                y=logical_y,
+                dx=logical_dx,
+                dy=logical_dy,
+                type="mouse_moved",
+            )
+            sketch.context.dispatch_mouse_event(event)
 
         @window.event
         def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+            logical_x, logical_y = self._logical_pointer_position(x, y)
+            logical_dx, logical_dy = self._logical_pointer_delta(dx, dy)
             event = MouseEvent(
-                x=x,
-                y=self.renderer.height - y,
-                dx=dx,
-                dy=-dy,
+                x=logical_x,
+                y=logical_y,
+                dx=logical_dx,
+                dy=logical_dy,
                 button=str(buttons),
+                modifiers=modifiers,
                 type="mouse_dragged",
             )
-            sketch.context.update_mouse_event(event)
-            sketch._dispatch_callback("mouse_dragged", event)
+            sketch.context.dispatch_mouse_event(event)
 
         @window.event
         def on_mouse_press(x, y, button, modifiers):
+            logical_x, logical_y = self._logical_pointer_position(x, y)
             event = MouseEvent(
-                x=x,
-                y=self.renderer.height - y,
-                button=str(button),
+                x=logical_x,
+                y=logical_y,
+                button=self._normalize_mouse_button(button),
+                modifiers=modifiers,
                 type="mouse_pressed",
             )
-            sketch.context.update_mouse_event(event, pressed=True)
-            sketch._dispatch_callback("mouse_pressed", event)
+            sketch.context.dispatch_mouse_event(event)
 
         @window.event
         def on_mouse_release(x, y, button, modifiers):
+            logical_x, logical_y = self._logical_pointer_position(x, y)
+            normalized_button = self._normalize_mouse_button(button)
             event = MouseEvent(
-                x=x,
-                y=self.renderer.height - y,
-                button=str(button),
+                x=logical_x,
+                y=logical_y,
+                button=normalized_button,
+                modifiers=modifiers,
                 type="mouse_released",
             )
-            sketch.context.update_mouse_event(event, pressed=False)
-            sketch._dispatch_callback("mouse_released", event)
+            sketch.context.dispatch_mouse_event(event)
+            clicked = MouseEvent(
+                x=logical_x,
+                y=logical_y,
+                button=normalized_button,
+                modifiers=modifiers,
+                type="mouse_clicked",
+            )
+            sketch.context.dispatch_mouse_event(clicked)
+
+        @window.event
+        def on_mouse_double_click(x, y, button, modifiers):
+            logical_x, logical_y = self._logical_pointer_position(x, y)
+            event = MouseEvent(
+                x=logical_x,
+                y=logical_y,
+                button=self._normalize_mouse_button(button),
+                modifiers=modifiers,
+                type="mouse_double_clicked",
+            )
+            sketch.context.dispatch_mouse_event(event)
 
         @window.event
         def on_mouse_scroll(x, y, scroll_x, scroll_y):
+            logical_x, logical_y = self._logical_pointer_position(x, y)
             event = MouseEvent(
-                x=x,
-                y=self.renderer.height - y,
+                x=logical_x,
+                y=logical_y,
                 scroll_x=scroll_x,
                 scroll_y=scroll_y,
                 type="mouse_wheel",
             )
-            sketch.context.update_mouse_event(event)
-            sketch._dispatch_callback("mouse_wheel", event)
+            sketch.context.dispatch_mouse_event(event)
 
         @window.event
         def on_key_press(symbol, modifiers):
             event = KeyboardEvent(
                 key=chr(symbol) if 0 <= symbol <= 0x10FFFF else None,
                 key_code=symbol,
+                modifiers=modifiers,
+                type="key_pressed",
             )
-            sketch.context.update_keyboard_event(event, pressed=True)
-            sketch._dispatch_callback("key_pressed", event)
+            sketch.context.dispatch_keyboard_event(event)
 
         @window.event
         def on_key_release(symbol, modifiers):
             event = KeyboardEvent(
                 key=chr(symbol) if 0 <= symbol <= 0x10FFFF else None,
                 key_code=symbol,
+                modifiers=modifiers,
+                type="key_released",
             )
-            sketch.context.update_keyboard_event(event, pressed=False)
-            sketch._dispatch_callback("key_released", event)
+            sketch.context.dispatch_keyboard_event(event)
+
+        @window.event
+        def on_text(text):
+            event = KeyboardEvent(
+                key=text,
+                key_code=ord(text) if len(text) == 1 else None,
+                type="key_typed",
+            )
+            sketch.context.dispatch_keyboard_event(event)

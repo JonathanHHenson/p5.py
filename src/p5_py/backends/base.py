@@ -21,6 +21,9 @@ class BackendCapabilities:
     pixel_readback: bool = True
     pixel_update: bool = True
     canvas_export: bool = True
+    mouse: bool = False
+    keyboard: bool = False
+    touch: bool = False
     paths: bool = True
     transforms: bool = True
     blend_modes: frozenset[str] = field(default_factory=frozenset)

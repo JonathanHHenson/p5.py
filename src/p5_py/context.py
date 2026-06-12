@@ -18,7 +18,7 @@ from p5_py.core.geometry import (
 )
 from p5_py.core.state import SketchState, StateStackEntry
 from p5_py.core.transform import Matrix2D
-from p5_py.events.input_state import KeyboardEvent, MouseEvent
+from p5_py.events.input_state import KeyboardEvent, MouseEvent, TouchEvent, TouchPoint
 from p5_py.exceptions import ArgumentValidationError
 
 
@@ -30,6 +30,7 @@ class SketchContext:
         self.backend = backend
         self.renderer = backend.renderer
         self.state = SketchState()
+        self.pixels: list[int] = []
 
     @property
     def width(self) -> int:
@@ -484,30 +485,173 @@ class SketchContext:
         return self.renderer.text_descent(self.state.style)
 
     def load_pixels(self) -> list[int]:
-        return self.renderer.load_pixels()
+        self.pixels = self.renderer.load_pixels()
+        return self.pixels
 
-    def update_pixels(self, pixels: list[int]) -> None:
-        self.renderer.update_pixels(pixels)
+    def update_pixels(self, pixels: list[int] | None = None) -> None:
+        if pixels is not None:
+            self.pixels = list(pixels)
+        if not self.pixels:
+            self.load_pixels()
+        self.renderer.update_pixels(self.pixels)
 
-    def save_canvas(self, path: str | Path) -> None:
-        self.renderer.save(path)
+    def pixel_array(self) -> list[list[tuple[int, int, int, int]]]:
+        pixels = self.pixels or self.load_pixels()
+        width = self.state.canvas.physical_width
+        rows: list[list[tuple[int, int, int, int]]] = []
+        for row_start in range(0, len(pixels), width * 4):
+            row: list[tuple[int, int, int, int]] = []
+            for index in range(row_start, row_start + width * 4, 4):
+                row.append((pixels[index], pixels[index + 1], pixels[index + 2], pixels[index + 3]))
+            rows.append(row)
+        return rows
+
+    def save_canvas(
+        self,
+        path: str | Path,
+        *,
+        extension: str | None = None,
+        overwrite: bool = True,
+    ) -> Path:
+        output = Path(path)
+        if output.name in {"", "."}:
+            raise ArgumentValidationError("save_canvas() requires a file path, not a directory.")
+        if extension is not None:
+            suffix = extension if extension.startswith(".") else f".{extension}"
+            output = output.with_suffix(suffix.lower())
+        elif output.suffix == "":
+            output = output.with_suffix(".png")
+        if output.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"}:
+            raise ArgumentValidationError(f"Unsupported canvas export format {output.suffix!r}.")
+        if output.exists() and not overwrite:
+            raise ArgumentValidationError(f"Refusing to overwrite existing file: {output!s}.")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        self.renderer.save(output)
+        return output
+
+    def blend_mode(self, mode: str) -> None:
+        if mode not in self.backend.capabilities.blend_modes:
+            raise ArgumentValidationError(
+                f"Unsupported blend mode {mode!r} for backend {self.backend.name!r}."
+            )
+        self.state.style.blend_mode = mode
+
+    def blend(self, *args: object) -> None:
+        if len(args) == 9:
+            source_image = None
+            sx, sy, sw, sh, dx, dy, dw, dh, mode = args
+        elif len(args) == 10 and isinstance(args[0], Image):
+            source_image = args[0].pillow
+            sx, sy, sw, sh, dx, dy, dw, dh, mode = args[1:]
+        else:
+            raise ArgumentValidationError(
+                "blend() accepts sx, sy, sw, sh, dx, dy, dw, dh, mode or "
+                "image, sx, sy, sw, sh, dx, dy, dw, dh, mode."
+            )
+        if not isinstance(mode, str):
+            raise ArgumentValidationError("blend() mode must be a string blend constant.")
+        if mode not in self.backend.capabilities.blend_modes:
+            raise ArgumentValidationError(
+                f"Unsupported blend mode {mode!r} for backend {self.backend.name!r}."
+            )
+        self.renderer.blend_region(
+            source_image,
+            (_coerce_int(sx), _coerce_int(sy), _coerce_int(sw), _coerce_int(sh)),
+            (_coerce_int(dx), _coerce_int(dy), _coerce_int(dw), _coerce_int(dh)),
+            mode,
+        )
+
+    def erase(self) -> None:
+        self.state.style.erasing = True
+
+    def no_erase(self) -> None:
+        self.state.style.erasing = False
+
+    @property
+    def pmouse_x(self) -> float:
+        return self.state.input.previous_mouse_x
+
+    @property
+    def pmouse_y(self) -> float:
+        return self.state.input.previous_mouse_y
+
+    @property
+    def moved_x(self) -> float:
+        return self.state.input.moved_x
+
+    @property
+    def moved_y(self) -> float:
+        return self.state.input.moved_y
+
+    @property
+    def mouse_is_pressed(self) -> bool:
+        return self.state.input.mouse_is_pressed
+
+    @property
+    def mouse_button(self) -> str | None:
+        return self.state.input.mouse_button
+
+    @property
+    def key(self) -> str | None:
+        return self.state.input.key
+
+    @property
+    def key_code(self) -> int | None:
+        return self.state.input.key_code
+
+    @property
+    def key_is_pressed(self) -> bool:
+        return self.state.input.key_is_pressed
+
+    @property
+    def touches(self) -> list[TouchPoint]:
+        return list(self.state.input.touches)
 
     def update_mouse_event(self, event: MouseEvent, *, pressed: bool | None = None) -> None:
-        self.state.input.update_mouse(event.x, event.y)
+        self.state.input.update_mouse(event.x, event.y, dx=event.dx, dy=event.dy)
         if event.button is not None:
             self.state.input.mouse_button = event.button
         if pressed is not None:
             self.state.input.mouse_is_pressed = pressed
+            if not pressed and event.button is not None:
+                self.state.input.mouse_button = event.button
 
-    def update_keyboard_event(self, event: KeyboardEvent, *, pressed: bool) -> None:
+    def dispatch_mouse_event(self, event: MouseEvent) -> None:
+        pressed = None
+        if event.type == "mouse_pressed":
+            pressed = True
+        elif event.type == "mouse_released":
+            pressed = False
+        self.update_mouse_event(event, pressed=pressed)
+        self.sketch._dispatch_callback(event.type, event)
+
+    def update_keyboard_event(self, event: KeyboardEvent, *, pressed: bool | None = None) -> None:
         self.state.input.key = event.key
         self.state.input.key_code = event.key_code
-        self.state.input.key_is_pressed = pressed
-        if event.key_code is not None:
+        if pressed is not None:
+            self.state.input.key_is_pressed = pressed
+        if event.key_code is not None and pressed is not None:
             if pressed:
                 self.state.input.pressed_keys.add(event.key_code)
             else:
                 self.state.input.pressed_keys.discard(event.key_code)
+
+    def dispatch_keyboard_event(self, event: KeyboardEvent) -> None:
+        pressed = None
+        if event.type == "key_pressed":
+            pressed = True
+        elif event.type == "key_released":
+            pressed = False
+        self.update_keyboard_event(event, pressed=pressed)
+        self.sketch._dispatch_callback(event.type, event)
+
+    def update_touch_event(self, event: TouchEvent) -> None:
+        self.state.input.require_touch_supported()
+        self.state.input.update_touches(event.touches)
+
+    def dispatch_touch_event(self, event: TouchEvent) -> None:
+        self.update_touch_event(event)
+        self.sketch._dispatch_callback(event.type, event)
 
     def key_is_down(self, key_code: int) -> bool:
         return self.state.input.key_is_down(key_code)
@@ -515,3 +659,11 @@ class SketchContext:
     def _angle(self, value: float) -> float:
         mode = getattr(self, "angle_mode_value", c.RADIANS)
         return math.radians(value) if mode == c.DEGREES else float(value)
+
+
+def _coerce_int(value: object) -> int:
+    if isinstance(value, str | int | float):
+        return int(value)
+    raise ArgumentValidationError(
+        f"Expected an integer-compatible value, got {type(value).__name__}."
+    )

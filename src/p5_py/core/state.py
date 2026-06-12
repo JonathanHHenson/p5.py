@@ -39,6 +39,7 @@ class StyleState:
     ellipse_mode: str = c.CENTER
     image_mode: str = c.CORNER
     blend_mode: str = c.BLEND
+    erasing: bool = False
     text_font: Font = field(default_factory=lambda: DEFAULT_FONT)
     text_size: float = 12.0
     text_style: str = c.NORMAL

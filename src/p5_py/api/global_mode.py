@@ -310,8 +310,40 @@ def pmouse_y() -> float:
     return require_context().state.input.previous_mouse_y
 
 
+def moved_x() -> float:
+    return require_context().moved_x
+
+
+def moved_y() -> float:
+    return require_context().moved_y
+
+
+def mouse_is_pressed() -> bool:
+    return require_context().mouse_is_pressed
+
+
+def mouse_button() -> str | None:
+    return require_context().mouse_button
+
+
+def key() -> str | None:
+    return require_context().key
+
+
+def key_code() -> int | None:
+    return require_context().key_code
+
+
+def key_is_pressed() -> bool:
+    return require_context().key_is_pressed
+
+
 def key_is_down(key_code: int) -> bool:
     return require_context().key_is_down(key_code)
+
+
+def touches():
+    return require_context().touches
 
 
 def image(*args: Any) -> None:
@@ -358,12 +390,37 @@ def load_pixels() -> list[int]:
     return require_context().load_pixels()
 
 
-def update_pixels(pixels: list[int]) -> None:
+def pixels() -> list[int]:
+    context = require_context()
+    return context.pixels or context.load_pixels()
+
+
+def pixel_array():
+    return require_context().pixel_array()
+
+
+def update_pixels(pixels: list[int] | None = None) -> None:
     require_context().update_pixels(pixels)
 
 
-def save_canvas(path: str) -> None:
-    require_context().save_canvas(path)
+def save_canvas(path: str, *, extension: str | None = None, overwrite: bool = True):
+    return require_context().save_canvas(path, extension=extension, overwrite=overwrite)
+
+
+def blend_mode(mode: str) -> None:
+    require_context().blend_mode(mode)
+
+
+def blend(*args: object) -> None:
+    require_context().blend(*args)
+
+
+def erase() -> None:
+    require_context().erase()
+
+
+def no_erase() -> None:
+    require_context().no_erase()
 
 
 __all__ = [
@@ -429,7 +486,15 @@ __all__ = [
     "mouse_y",
     "pmouse_x",
     "pmouse_y",
+    "moved_x",
+    "moved_y",
+    "mouse_is_pressed",
+    "mouse_button",
+    "key",
+    "key_code",
+    "key_is_pressed",
     "key_is_down",
+    "touches",
     "image",
     "image_mode",
     "text",
@@ -476,6 +541,12 @@ __all__ = [
     "noise_seed",
     "noise_detail",
     "load_pixels",
+    "pixels",
+    "pixel_array",
     "update_pixels",
     "save_canvas",
+    "blend_mode",
+    "blend",
+    "erase",
+    "no_erase",
 ]

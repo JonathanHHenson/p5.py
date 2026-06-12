@@ -87,6 +87,14 @@ def test_pyglet_create_canvas_uses_framebuffer_density_fallback():
     assert backend.renderer.physical_height == 840
 
 
+def test_pyglet_pointer_coordinates_are_scaled_to_logical_canvas_space():
+    backend = PygletBackend()
+    backend.renderer.resize(640, 420, pixel_density=2)
+
+    assert backend._logical_pointer_position(320, 200) == (160, 320)
+    assert backend._logical_pointer_delta(12, -8) == (6, 4)
+
+
 def test_next_frame_delay_compensates_for_late_callback():
     backend = PygletBackend()
     interval = 1.0 / 60.0
