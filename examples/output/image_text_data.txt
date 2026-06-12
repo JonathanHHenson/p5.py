@@ -1,4 +1,0 @@
-load_json/save_json
-load_strings/save_strings
-Image pixels
-text metrics
