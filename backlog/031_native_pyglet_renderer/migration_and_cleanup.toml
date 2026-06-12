@@ -9,32 +9,32 @@ acceptance_criteria = '''
 `PygletBackend` uses `PygletRenderer` by default, the old Pillow bridge behavior is removed or retained only as an explicit fallback, examples run interactively with native rendering, and documentation reflects the new default rendering path.
 '''
 priotity = 'high'
-status = 'TODO'
+status = 'DONE'
 
 [my_pbi.task_1]
 order = 1
-status = 'TODO'
+status = 'DONE'
 description = '''
 Switch `PygletBackend.renderer` from `PillowRenderer` to `PygletRenderer` once primitive, transform, and HiDPI behavior are ready.
 '''
 
 [my_pbi.task_2]
 order = 2
-status = 'TODO'
+status = 'DONE'
 description = '''
 Remove bridge-specific presentation code that uploads a Pillow image every frame, or keep it behind an explicit fallback backend name.
 '''
 
 [my_pbi.task_3]
 order = 3
-status = 'TODO'
+status = 'DONE'
 description = '''
 Update examples and documentation to describe native Pyglet rendering as the default interactive path.
 '''
 
 [my_pbi.task_4]
 order = 4
-status = 'TODO'
+status = 'DONE'
 description = '''
 Run full tests, diagnostics, and manual interactive smoke tests for all examples before marking the migration complete.
 '''

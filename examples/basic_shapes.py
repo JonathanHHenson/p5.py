@@ -15,6 +15,7 @@ from pathlib import Path
 import p5_py as p5
 
 OUTPUT = Path("examples/output/basic_shapes.png")
+EXPORT_CANVAS = False
 
 
 def setup() -> None:
@@ -47,7 +48,7 @@ def draw() -> None:
     p5.no_stroke()
     p5.quad(445, 250, 585, 235, 610, 345, 420, 360)
 
-    if p5.frame_count() == 0:
+    if EXPORT_CANVAS and p5.frame_count() == 0:
         OUTPUT.parent.mkdir(parents=True, exist_ok=True)
         p5.save_canvas(str(OUTPUT))
 
@@ -57,6 +58,8 @@ def main() -> None:
     parser.add_argument("--backend", default="pyglet", choices=p5.available_backends())
     parser.add_argument("--frames", type=int, default=None)
     args = parser.parse_args()
+    global EXPORT_CANVAS
+    EXPORT_CANVAS = args.backend in {p5.HEADLESS, p5.PILLOW}
     p5.run(setup=setup, draw=draw, backend=args.backend, max_frames=args.frames)
 
 

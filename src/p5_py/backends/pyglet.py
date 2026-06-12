@@ -1,9 +1,4 @@
-"""Pyglet interactive backend.
-
-The first interactive backend intentionally reuses the Pillow renderer for drawing and presents
-that raster surface in a native Pyglet window. This keeps p5-py backend-agnostic while leaving
-room for a future custom GPU renderer.
-"""
+"""Pyglet interactive backend."""
 
 from __future__ import annotations
 
@@ -11,7 +6,7 @@ from typing import Any, cast
 
 from p5_py import constants as c
 from p5_py.backends.base import BackendCapabilities
-from p5_py.backends.pillow import PillowRenderer
+from p5_py.backends.pyglet_renderer import PygletRenderer
 from p5_py.events.input_state import KeyboardEvent, MouseEvent
 
 
@@ -19,14 +14,14 @@ class PygletBackend:
     name = c.PYGLET
     capabilities = BackendCapabilities(
         interactive=True,
-        pixels=True,
+        pixels=False,
         paths=True,
         transforms=True,
         blend_modes=frozenset({c.BLEND, c.REPLACE}),
     )
 
     def __init__(self) -> None:
-        self.renderer = PillowRenderer()
+        self.renderer = PygletRenderer()
         self._window: Any | None = None
         self._pyglet: Any | None = None
         self._running = False
@@ -34,6 +29,7 @@ class PygletBackend:
 
     def create_canvas(self, width: int, height: int, pixel_density: float | None = None) -> None:
         pyglet = self._load_pyglet()
+        self.renderer.bind_pyglet(pyglet)
         if self._window is None:
             self._window = pyglet.window.Window(width=width, height=height, caption="p5-py")
         else:
@@ -93,22 +89,11 @@ class PygletBackend:
     def present(self) -> None:
         if self._window is None:
             return
-        pyglet = self._load_pyglet()
-        image = self.renderer.get_image()
-        data = image.tobytes()
-        pyglet_image = pyglet.image.ImageData(
-            self.renderer.physical_width,
-            self.renderer.physical_height,
-            "RGBA",
-            data,
-            pitch=-self.renderer.physical_width * 4,
-        )
-        presentation_width, presentation_height = self._presentation_size()
-        pyglet_image.blit(0, 0, width=presentation_width, height=presentation_height)
+        self.renderer.draw()
 
-    def _presentation_size(self) -> tuple[int, int]:
+    def _framebuffer_size(self) -> tuple[int, int]:
         if self._window is None:
-            return self.renderer.width, self.renderer.height
+            return self.renderer.physical_width, self.renderer.physical_height
         framebuffer_size = getattr(self._window, "get_framebuffer_size", None)
         if callable(framebuffer_size):
             width, height = cast(tuple[int | float, int | float], framebuffer_size())

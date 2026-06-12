@@ -2,25 +2,29 @@
 
 ## Current state
 
-The current interactive Pyglet backend is a bridge backend:
+The interactive Pyglet backend now uses a native renderer by default:
 
 ```text
 p5-py public API
   ↓
 SketchContext
   ↓
-PillowRenderer
+Renderer protocol
   ↓
-PygletBackend uploads/presents the Pillow image in a Pyglet window
+PygletRenderer
+  ↓
+Pyglet shape draw commands
+  ↓
+Pyglet/OpenGL framebuffer
 ```
 
-This was useful for the first implementation because it gave p5-py one deterministic renderer for both tests and interactive sketches. It also let the project validate the runtime, global API, drawing state, transforms, paths, pixel APIs, exports, and HiDPI behavior without committing early to Pyglet graphics internals.
+The previous bridge backend was useful for the first implementation because it gave p5-py one deterministic renderer for both tests and interactive sketches. The native path removes the per-frame Pillow raster upload from the default interactive backend while preserving the same public p5-py APIs.
 
-The downside is that the interactive backend is not yet truly native. It still rasterizes through Pillow and uploads a frame image to Pyglet.
+Pillow remains the deterministic renderer for the headless backend, golden tests, pixel-buffer workflows, and non-interactive export.
 
-## Target state
+## Architecture
 
-The target architecture separates the window/event backend from the renderer:
+The architecture separates the window/event backend from the renderer:
 
 ```text
 p5-py public API
@@ -42,24 +46,16 @@ With this split:
 - The public API remains unchanged.
 - Pillow remains the deterministic headless renderer and export/golden-test path.
 
-## Proposed module layout
+## Module layout
 
-The current single-file backend can later be split into a package:
-
-```text
-src/p5_py/backends/pyglet/
-  __init__.py
-  backend.py
-  renderer.py
-  events.py
-  capabilities.py
-```
-
-A smaller first step could keep the existing backend file and add:
+The first native milestone keeps the backend as a single file and adds a separate renderer module:
 
 ```text
-src/p5_py/backends/pyglet_renderer.py
+src/p5_py/backends/pyglet.py            # window, event loop, input, scheduling
+src/p5_py/backends/pyglet_renderer.py   # native drawing through Pyglet shapes
 ```
+
+The backend can still be split into a package later if Pyglet-specific event, renderer, or capability code grows enough to justify it.
 
 ## Responsibilities
 
@@ -136,11 +132,11 @@ Cons:
 - shader and context management complexity
 - more difficult to keep beginner-friendly and cross-platform
 
-## Recommended first native renderer milestone
+## First native renderer milestone
 
-Start with Pyglet-native shapes and shared p5-py geometry helpers.
+The first native renderer uses Pyglet shapes plus shared p5-py geometry helpers. This keeps the implementation small and on public Pyglet APIs before introducing lower-level batching or custom OpenGL geometry.
 
-Implement first:
+Implemented:
 
 - `background`
 - `clear`
@@ -155,47 +151,50 @@ Implement first:
 - `quad`
 - `arc`
 
-Reuse existing geometry flattening for:
+The public `SketchContext` continues to flatten these into renderer polygons or polylines before calling the renderer:
 
 - Bezier curves
 - quadratic curves
-- custom shapes
+- custom shapes created by `begin_shape`, `vertex`, `quadratic_vertex`, `bezier_vertex`, and `end_shape`
 - arcs where native support is insufficient
 
 ## HiDPI behavior
 
-The native renderer must preserve the current pixel-density model:
+The native renderer preserves the current pixel-density model:
 
 - `width()` and `height()` are logical p5 canvas dimensions.
 - `display_density()` reports the native display density when available.
 - `pixel_density()` controls the logical-to-physical scale.
 - Pyglet native drawing should not double-scale on Retina displays.
 
-The renderer should define one clear coordinate transform from logical p5 coordinates to framebuffer coordinates.
+`PygletRenderer` receives logical p5 coordinates, applies the active p5-py affine transform, scales by `pixel_density`, and flips the y axis into Pyglet's bottom-left framebuffer coordinate system:
+
+```text
+framebuffer_x = logical_x * pixel_density
+framebuffer_y = physical_height - logical_y * pixel_density
+```
+
+The renderer tracks both logical dimensions and physical framebuffer dimensions so `width()`, `height()`, `pixel_density()`, and `display_density()` remain distinct concepts.
 
 ## Pixel and export APIs
 
-The native renderer should either implement or capability-gate:
+The native renderer capability-gates these APIs in the first milestone:
 
 - `load_pixels`
 - `update_pixels`
 - `save_canvas`
 
-Potential approaches:
+They raise `BackendCapabilityError` with guidance to use the headless backend. Pillow remains the canonical deterministic path for headless rendering, image export, and golden tests.
 
-- framebuffer readback for `load_pixels` and `save_canvas`
-- texture upload/update for `update_pixels`
-- explicit `BackendCapabilityError` for unsupported pixel operations in the first native renderer milestone
+Future native support can use framebuffer readback for `load_pixels` and `save_canvas`, and either texture upload/update or an explicit documented limitation for `update_pixels`.
 
-Pillow should remain the canonical deterministic path for headless rendering, image export, and golden tests.
+## Migration status
 
-## Migration plan
-
-1. Add `PygletRenderer` while keeping the current Pillow bridge backend intact.
-2. Implement basic primitive rendering natively.
-3. Add transform/path/curve support.
-4. Preserve and test HiDPI behavior.
-5. Decide pixel/export behavior.
-6. Switch `PygletBackend` to use `PygletRenderer` by default.
-7. Remove the bridge code or expose it as an explicit fallback backend.
-8. Update docs and examples to describe native Pyglet rendering as the interactive default.
+1. `PygletRenderer` exists as a concrete implementation of the `Renderer` protocol.
+2. Basic primitive rendering is implemented through Pyglet-native draw commands.
+3. Transform, path, and curve support is provided by applying p5-py transform matrices and reusing shared geometry flattening before renderer calls.
+4. HiDPI logical and physical dimensions are covered by focused unit tests.
+5. Pixel and export behavior is explicitly capability-gated for the native renderer.
+6. `PygletBackend` uses `PygletRenderer` by default.
+7. The bridge-specific Pillow image upload path has been removed from the default Pyglet backend.
+8. The headless Pillow backend remains available for deterministic export and tests.

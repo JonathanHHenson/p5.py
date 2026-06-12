@@ -1,6 +1,17 @@
 from p5_py.backends.pyglet import PygletBackend
 
 
+class FakeBatch:
+    def draw(self):
+        pass
+
+
+class FakeGraphics:
+    @staticmethod
+    def Batch():
+        return FakeBatch()
+
+
 class FakeFramebufferWindow:
     def get_framebuffer_size(self):
         return 1280, 840
@@ -12,6 +23,8 @@ class FakePixelRatioWindow:
 
 
 class FakePygletModule:
+    graphics = FakeGraphics()
+
     class window:
         @staticmethod
         def Window(width, height, caption):
@@ -19,26 +32,28 @@ class FakePygletModule:
 
 
 class FakeFramebufferPygletModule:
+    graphics = FakeGraphics()
+
     class window:
         @staticmethod
         def Window(width, height, caption):
             return FakeFramebufferWindow()
 
 
-def test_pyglet_presentation_size_uses_framebuffer_size():
+def test_pyglet_framebuffer_size_uses_framebuffer_size():
     backend = PygletBackend()
     backend.renderer.resize(640, 420)
     backend._window = FakeFramebufferWindow()
 
-    assert backend._presentation_size() == (1280, 840)
+    assert backend._framebuffer_size() == (1280, 840)
 
 
-def test_pyglet_presentation_size_falls_back_to_pixel_ratio():
+def test_pyglet_framebuffer_size_falls_back_to_pixel_ratio():
     backend = PygletBackend()
     backend.renderer.resize(640, 420)
     backend._window = FakePixelRatioWindow()
 
-    assert backend._presentation_size() == (1280, 840)
+    assert backend._framebuffer_size() == (1280, 840)
 
 
 def test_pyglet_create_canvas_defaults_to_display_density():
