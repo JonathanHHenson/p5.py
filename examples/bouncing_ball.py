@@ -66,10 +66,6 @@ def print_fps() -> None:
         frame_count = 0
 
 
-def lerp(start: float, stop: float, amount: float) -> float:
-    return start + (stop - start) * amount
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", default="pyglet", choices=p5.available_backends())

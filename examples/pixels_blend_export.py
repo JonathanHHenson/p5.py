@@ -26,6 +26,10 @@ FIRE: p5.Image | None = None
 UFO: p5.Image | None = None
 POWERUP: p5.Image | None = None
 
+frame_count = 0
+fps_print_interval_ms = 1000.0
+last_fps_print_millis = 0.0
+
 
 def setup() -> None:
     global FIRE, POWERUP, SHIELD, SHIP, UFO
@@ -87,6 +91,21 @@ def draw() -> None:
 
     if EXPORT_CANVAS and p5.frame_count() == 0:
         p5.save_canvas(str(OUTPUT), overwrite=True)
+
+    print_fps()
+
+
+def print_fps() -> None:
+    global frame_count, last_fps_print_millis
+
+    frame_count += 1
+    now = p5.millis()
+    fps_print_delta = now - last_fps_print_millis
+    if fps_print_delta >= fps_print_interval_ms:
+        fps_sample = 1000 * frame_count / fps_print_delta
+        print(f"FPS: {fps_sample:.1f}")
+        last_fps_print_millis = now
+        frame_count = 0
 
 
 def draw_scene_layers(
