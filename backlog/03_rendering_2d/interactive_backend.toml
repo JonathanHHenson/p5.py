@@ -9,7 +9,7 @@ acceptance_criteria = '''
 One interactive backend is selected, implemented behind the backend protocol, and documented. It supports window creation, frame presentation, resize, mouse and keyboard event forwarding, and clean shutdown.
 '''
 priotity = 'high'
-status = 'IN_PROGRESS'
+status = 'DONE'
 
 [my_pbi.task_1]
 order = 1
@@ -34,7 +34,7 @@ Wire backend event-loop timing to sketch lifecycle and renderer protocol.
 
 [my_pbi.task_4]
 order = 4
-status = 'IN_PROGRESS'
+status = 'DONE'
 description = '''
 Add smoke tests or manual examples for interactive drawing and input.
 '''

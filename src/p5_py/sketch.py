@@ -81,11 +81,17 @@ class Sketch:
         return self._ctx.is_looping()
 
     # Canvas / style / drawing delegates
-    def create_canvas(self, width: int, height: int, *, pixel_density: float = 1.0) -> None:
+    def create_canvas(self, width: int, height: int, *, pixel_density: float | None = None) -> None:
         self._ctx.create_canvas(width, height, pixel_density=pixel_density)
 
     def resize_canvas(self, width: int, height: int, *, pixel_density: float | None = None) -> None:
         self._ctx.resize_canvas(width, height, pixel_density=pixel_density)
+
+    def pixel_density(self, value: float | None = None) -> float:
+        return self._ctx.pixel_density(value)
+
+    def display_density(self) -> float:
+        return self._ctx.display_density()
 
     def background(self, *args: object) -> None:
         self._ctx.background(*args)

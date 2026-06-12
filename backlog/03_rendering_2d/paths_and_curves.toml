@@ -9,7 +9,7 @@ acceptance_criteria = '''
 `begin_shape`, `end_shape`, `vertex`, `begin_contour`, `end_contour`, Bezier curves, curve vertices, and related curve math APIs are supported or clearly marked partial with tests for supported behavior.
 '''
 priotity = 'medium'
-status = 'IN_PROGRESS'
+status = 'DONE'
 
 [my_pbi.task_1]
 order = 1
@@ -34,7 +34,7 @@ Implement Bezier and curve helper math including point and tangent functions.
 
 [my_pbi.task_4]
 order = 4
-status = 'TODO'
+status = 'DONE'
 description = '''
 Add golden and unit tests for custom shapes, contours, and curves.
 '''

@@ -13,6 +13,9 @@ from p5_py.core.transform import Matrix2D
 class Renderer(Protocol):
     width: int
     height: int
+    physical_width: int
+    physical_height: int
+    pixel_density: float
 
     def resize(self, width: int, height: int, pixel_density: float = 1.0) -> None: ...
 

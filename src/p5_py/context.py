@@ -52,26 +52,46 @@ class SketchContext:
     def mouse_y(self) -> float:
         return self.state.input.mouse_y
 
-    def create_canvas(self, width: int, height: int, *, pixel_density: float = 1.0) -> None:
-        self.state.canvas.width = int(width)
-        self.state.canvas.height = int(height)
-        self.state.canvas.pixel_density = float(pixel_density)
-        self.state.canvas.created = True
-        self.backend.create_canvas(int(width), int(height), float(pixel_density))
+    def create_canvas(
+        self,
+        width: int,
+        height: int,
+        *,
+        pixel_density: float | None = None,
+    ) -> None:
+        self.backend.create_canvas(int(width), int(height), pixel_density)
         self.renderer = self.backend.renderer
+        self._sync_canvas_state()
+        self.state.canvas.created = True
 
     def resize_canvas(self, width: int, height: int, *, pixel_density: float | None = None) -> None:
         density = self.state.canvas.pixel_density if pixel_density is None else pixel_density
-        self.state.canvas.width = int(width)
-        self.state.canvas.height = int(height)
-        self.state.canvas.pixel_density = float(density)
-        self.state.canvas.created = True
         self.backend.resize_canvas(int(width), int(height), float(density))
         self.renderer = self.backend.renderer
+        self._sync_canvas_state()
+        self.state.canvas.created = True
 
     def ensure_canvas(self) -> None:
         if not self.state.canvas.created:
             self.create_canvas(self.state.canvas.width, self.state.canvas.height)
+
+    def pixel_density(self, value: float | None = None) -> float:
+        if value is None:
+            return self.state.canvas.pixel_density
+        if value <= 0:
+            raise ArgumentValidationError("pixel_density() must be positive.")
+        self.resize_canvas(self.state.canvas.width, self.state.canvas.height, pixel_density=value)
+        return self.state.canvas.pixel_density
+
+    def display_density(self) -> float:
+        return self.backend.display_density()
+
+    def _sync_canvas_state(self) -> None:
+        self.state.canvas.width = self.renderer.width
+        self.state.canvas.height = self.renderer.height
+        self.state.canvas.physical_width = self.renderer.physical_width
+        self.state.canvas.physical_height = self.renderer.physical_height
+        self.state.canvas.pixel_density = self.renderer.pixel_density
 
     def color(self, *args: object) -> Color:
         return Color.from_args(

@@ -18,8 +18,8 @@ def _rgba(color: Color | None) -> tuple[int, int, int, int] | None:
     return None if color is None else color.to_tuple()
 
 
-def _stroke_width(style: StyleState) -> int:
-    return max(1, int(round(style.stroke_weight)))
+def _stroke_width(style: StyleState, pixel_density: float) -> int:
+    return max(1, int(round(style.stroke_weight * pixel_density)))
 
 
 class PillowRenderer:
@@ -27,6 +27,8 @@ class PillowRenderer:
 
     width: int
     height: int
+    physical_width: int
+    physical_height: int
 
     def __init__(self, width: int = 100, height: int = 100, pixel_density: float = 1.0) -> None:
         self.pixel_density = pixel_density
@@ -35,10 +37,14 @@ class PillowRenderer:
     def resize(self, width: int, height: int, pixel_density: float = 1.0) -> None:
         if width <= 0 or height <= 0:
             raise ArgumentValidationError("Canvas width and height must be positive.")
+        if pixel_density <= 0:
+            raise ArgumentValidationError("Pixel density must be positive.")
         self.width = int(width)
         self.height = int(height)
         self.pixel_density = float(pixel_density)
-        self.image = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+        self.physical_width = max(1, int(round(self.width * self.pixel_density)))
+        self.physical_height = max(1, int(round(self.height * self.pixel_density)))
+        self.image = Image.new("RGBA", (self.physical_width, self.physical_height), (0, 0, 0, 0))
         self.draw = ImageDraw.Draw(self.image, "RGBA")
 
     def begin_frame(self) -> None:
@@ -48,18 +54,20 @@ class PillowRenderer:
         pass
 
     def background(self, color: Color) -> None:
-        self.draw.rectangle((0, 0, self.width, self.height), fill=color.to_tuple())
+        self.draw.rectangle(
+            (0, 0, self.physical_width, self.physical_height), fill=color.to_tuple()
+        )
 
     def clear(self) -> None:
-        self.image = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+        self.image = Image.new("RGBA", (self.physical_width, self.physical_height), (0, 0, 0, 0))
         self.draw = ImageDraw.Draw(self.image, "RGBA")
 
     def point(self, x: float, y: float, style: StyleState, transform: Matrix2D) -> None:
         color = style.stroke_color or style.fill_color
         if color is None:
             return
-        tx, ty = transform.transform_point(x, y)
-        radius = max(0.5, style.stroke_weight / 2)
+        tx, ty = self._physical_transform(transform).transform_point(x, y)
+        radius = max(0.5, style.stroke_weight * self.pixel_density / 2)
         self.draw.ellipse(
             (tx - radius, ty - radius, tx + radius, ty + radius),
             fill=color.to_tuple(),
@@ -76,9 +84,14 @@ class PillowRenderer:
     ) -> None:
         if style.stroke_color is None:
             return
-        p1 = transform.transform_point(x1, y1)
-        p2 = transform.transform_point(x2, y2)
-        self.draw.line((*p1, *p2), fill=style.stroke_color.to_tuple(), width=_stroke_width(style))
+        physical_transform = self._physical_transform(transform)
+        p1 = physical_transform.transform_point(x1, y1)
+        p2 = physical_transform.transform_point(x2, y2)
+        self.draw.line(
+            (*p1, *p2),
+            fill=style.stroke_color.to_tuple(),
+            width=_stroke_width(style, self.pixel_density),
+        )
 
     def polygon(
         self,
@@ -90,7 +103,8 @@ class PillowRenderer:
     ) -> None:
         if not points:
             return
-        transformed = [transform.transform_point(x, y) for x, y in points]
+        physical_transform = self._physical_transform(transform)
+        transformed = [physical_transform.transform_point(x, y) for x, y in points]
         if len(transformed) == 1:
             self.point(points[0][0], points[0][1], style, transform)
             return
@@ -101,7 +115,7 @@ class PillowRenderer:
             self.draw.line(
                 stroke_points,
                 fill=style.stroke_color.to_tuple(),
-                width=_stroke_width(style),
+                width=_stroke_width(style, self.pixel_density),
             )
 
     def ellipse(
@@ -154,23 +168,28 @@ class PillowRenderer:
             if style.fill_color is not None and mode != c.OPEN:
                 self.polygon(arc_points, style, transform, close=True)
             if style.stroke_color is not None:
-                transformed = [transform.transform_point(px, py) for px, py in arc_points]
+                physical_transform = self._physical_transform(transform)
+                transformed = [physical_transform.transform_point(px, py) for px, py in arc_points]
                 self.draw.line(
                     transformed,
                     fill=style.stroke_color.to_tuple(),
-                    width=_stroke_width(style),
+                    width=_stroke_width(style, self.pixel_density),
                 )
 
     def load_pixels(self) -> list[int]:
         return list(self.image.tobytes())
 
     def update_pixels(self, pixels: list[int]) -> None:
-        expected = self.width * self.height * 4
+        expected = self.physical_width * self.physical_height * 4
         if len(pixels) != expected:
             raise ArgumentValidationError(
                 f"Pixel buffer length must be {expected}, got {len(pixels)}."
             )
-        self.image = Image.frombytes("RGBA", (self.width, self.height), bytes(pixels))
+        self.image = Image.frombytes(
+            "RGBA",
+            (self.physical_width, self.physical_height),
+            bytes(pixels),
+        )
         self.draw = ImageDraw.Draw(self.image, "RGBA")
 
     def save(self, path: str | Path) -> None:
@@ -178,6 +197,9 @@ class PillowRenderer:
 
     def get_image(self) -> Image.Image:
         return self.image
+
+    def _physical_transform(self, transform: Matrix2D) -> Matrix2D:
+        return Matrix2D.scaling(self.pixel_density).multiply(transform)
 
 
 def _angle_steps(count: int):

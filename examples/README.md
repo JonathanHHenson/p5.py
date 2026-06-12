@@ -16,6 +16,8 @@ uv run python examples/basic_shapes.py --backend headless --frames 1
 
 Export examples save PNG files when run headlessly or when their draw loop reaches the configured frame count.
 
+On Retina/HiDPI displays, the Pyglet backend renders to a higher-resolution backing buffer while keeping p5 coordinates logical. See `docs/hidpi_rendering.md` for details.
+
 ## Examples
 
 - `basic_shapes.py` demonstrates canvas creation, colors, fills, strokes, primitives, arcs, and export.

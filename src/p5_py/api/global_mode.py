@@ -32,7 +32,7 @@ def run(
     return sketch.run(max_frames=max_frames)
 
 
-def create_canvas(width: int, height: int, *, pixel_density: float = 1.0) -> None:
+def create_canvas(width: int, height: int, *, pixel_density: float | None = None) -> None:
     require_context().create_canvas(width, height, pixel_density=pixel_density)
 
 
@@ -46,6 +46,14 @@ def width() -> int:
 
 def height() -> int:
     return require_context().height
+
+
+def pixel_density(value: float | None = None) -> float:
+    return require_context().pixel_density(value)
+
+
+def display_density() -> float:
+    return require_context().display_density()
 
 
 def background(*args: object) -> None:
@@ -284,6 +292,8 @@ __all__ = [
     "resize_canvas",
     "width",
     "height",
+    "pixel_density",
+    "display_density",
     "background",
     "clear",
     "color",

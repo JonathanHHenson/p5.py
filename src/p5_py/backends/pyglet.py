@@ -32,15 +32,16 @@ class PygletBackend:
         self._running = False
         self._frames_drawn = 0
 
-    def create_canvas(self, width: int, height: int, pixel_density: float = 1.0) -> None:
-        self.renderer.resize(width, height, pixel_density)
+    def create_canvas(self, width: int, height: int, pixel_density: float | None = None) -> None:
         pyglet = self._load_pyglet()
         if self._window is None:
             self._window = pyglet.window.Window(width=width, height=height, caption="p5-py")
         else:
             self._window.set_size(width, height)
+        density = self._display_density_for_width(width) if pixel_density is None else pixel_density
+        self.renderer.resize(width, height, density)
 
-    def resize_canvas(self, width: int, height: int, pixel_density: float = 1.0) -> None:
+    def resize_canvas(self, width: int, height: int, pixel_density: float | None = None) -> None:
         self.create_canvas(width, height, pixel_density)
 
     def run(self, sketch, *, max_frames: int | None = None) -> None:
@@ -74,6 +75,21 @@ class PygletBackend:
         if self._pyglet is not None:
             self._pyglet.app.exit()
 
+    def display_density(self) -> float:
+        return self._display_density_for_width(self.renderer.width)
+
+    def _display_density_for_width(self, logical_width: int) -> float:
+        if self._window is None:
+            return 1.0
+        pixel_ratio_getter = getattr(self._window, "get_pixel_ratio", None)
+        if callable(pixel_ratio_getter):
+            return max(1.0, float(cast(int | float, pixel_ratio_getter())))
+        framebuffer_size = getattr(self._window, "get_framebuffer_size", None)
+        if callable(framebuffer_size):
+            width, _height = cast(tuple[int | float, int | float], framebuffer_size())
+            return max(1.0, float(width) / max(1, logical_width))
+        return 1.0
+
     def present(self) -> None:
         if self._window is None:
             return
@@ -81,11 +97,11 @@ class PygletBackend:
         image = self.renderer.get_image()
         data = image.tobytes()
         pyglet_image = pyglet.image.ImageData(
-            self.renderer.width,
-            self.renderer.height,
+            self.renderer.physical_width,
+            self.renderer.physical_height,
             "RGBA",
             data,
-            pitch=-self.renderer.width * 4,
+            pitch=-self.renderer.physical_width * 4,
         )
         presentation_width, presentation_height = self._presentation_size()
         pyglet_image.blit(0, 0, width=presentation_width, height=presentation_height)

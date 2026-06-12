@@ -10,6 +10,7 @@ from p5_py.api.global_mode import (
     color_mode,
     create_canvas,
     delta_time,
+    display_density,
     ellipse_mode,
     end_shape,
     frame_count,
@@ -23,6 +24,7 @@ from p5_py.api.global_mode import (
     no_fill,
     no_loop,
     no_stroke,
+    pixel_density,
     pmouse_x,
     pmouse_y,
     quadratic_vertex,
@@ -57,6 +59,8 @@ angleMode = angle_mode
 frameRate = frame_rate
 frameCount = frame_count
 deltaTime = delta_time
+pixelDensity = pixel_density
+displayDensity = display_density
 noLoop = no_loop
 isLooping = is_looping
 keyIsDown = key_is_down
@@ -92,6 +96,8 @@ __all__ = [
     "frameRate",
     "frameCount",
     "deltaTime",
+    "pixelDensity",
+    "displayDensity",
     "noLoop",
     "isLooping",
     "keyIsDown",

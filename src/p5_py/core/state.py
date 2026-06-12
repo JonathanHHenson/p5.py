@@ -15,6 +15,8 @@ from p5_py.events.input_state import InputState
 class CanvasState:
     width: int = 100
     height: int = 100
+    physical_width: int = 100
+    physical_height: int = 100
     pixel_density: float = 1.0
     created: bool = False
 
