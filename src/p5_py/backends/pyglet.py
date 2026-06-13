@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from typing import Any, cast
 
 from p5_py import constants as c
@@ -45,6 +46,7 @@ class PygletBackend:
     )
 
     def __init__(self) -> None:
+        self.capabilities = type(self).capabilities
         self.renderer = PygletRenderer()
         self._renderer_kind = c.P2D
         self._window: Any | None = None
@@ -178,12 +180,22 @@ class PygletBackend:
         if self._renderer_kind == renderer:
             return
         if renderer == c.WEBGL:
-            self.renderer = PygletWebGLRenderer(
-                self.renderer.width,
-                self.renderer.height,
-                self.renderer.pixel_density,
-                pyglet=pyglet,
-            )
+            if PygletWebGLRenderer.native_gl_supported(pyglet):
+                self.renderer = PygletWebGLRenderer(
+                    self.renderer.width,
+                    self.renderer.height,
+                    self.renderer.pixel_density,
+                    pyglet=pyglet,
+                )
+                self.capabilities = replace(self.capabilities, shaders=True)
+            else:
+                self.renderer = PygletRenderer(
+                    self.renderer.width,
+                    self.renderer.height,
+                    self.renderer.pixel_density,
+                    pyglet=pyglet,
+                )
+                self.capabilities = replace(self.capabilities, shaders=False)
         else:
             self.renderer = PygletRenderer(
                 self.renderer.width,
@@ -191,7 +203,28 @@ class PygletBackend:
                 self.renderer.pixel_density,
                 pyglet=pyglet,
             )
+            self.capabilities = replace(self.capabilities, shaders=True)
         self._renderer_kind = renderer
+
+    def enable_native_webgl(self) -> bool:
+        pyglet = self._load_pyglet()
+        if self._renderer_kind != c.WEBGL:
+            return False
+        if isinstance(self.renderer, PygletWebGLRenderer):
+            self.capabilities = replace(self.capabilities, shaders=True)
+            return True
+        if not PygletWebGLRenderer.native_gl_supported(pyglet):
+            return False
+        renderer = PygletWebGLRenderer(
+            self.renderer.width,
+            self.renderer.height,
+            self.renderer.pixel_density,
+            pyglet=pyglet,
+        )
+        renderer.bind_pyglet(pyglet)
+        self.renderer = renderer
+        self.capabilities = replace(self.capabilities, shaders=True)
+        return True
 
     def _normalize_mouse_button(self, button: object) -> str:
         pyglet = self._load_pyglet()

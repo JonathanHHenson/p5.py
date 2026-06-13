@@ -654,6 +654,10 @@ class SketchContext:
     def shader(self, shader: Shader3D) -> None:
         self._require_webgl_mode("shader")
         if not self.backend.capabilities.shaders:
+            enable_native_webgl = getattr(self.backend, "enable_native_webgl", None)
+            if callable(enable_native_webgl) and enable_native_webgl():
+                self.renderer = self.backend.renderer
+        if not self.backend.capabilities.shaders:
             raise BackendCapabilityError(
                 f"Backend {self.backend.name!r} does not support shader()."
             )

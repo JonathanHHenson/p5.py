@@ -72,6 +72,52 @@ class PygletWebGLRenderer(PygletRenderer):
 
     three_d = True
 
+    @staticmethod
+    def native_gl_supported(pyglet: Any) -> bool:
+        gl = getattr(pyglet, "gl", None)
+        if gl is None:
+            return False
+        required = (
+            "glViewport",
+            "glEnable",
+            "glDepthMask",
+            "glClearColor",
+            "glClear",
+            "glUseProgram",
+            "glCreateProgram",
+            "glCreateShader",
+            "glShaderSource",
+            "glCompileShader",
+            "glAttachShader",
+            "glLinkProgram",
+            "glGetShaderiv",
+            "glGetProgramiv",
+            "glGetUniformLocation",
+            "glUniformMatrix4fv",
+            "glUniform1f",
+            "glUniform1i",
+            "glUniform2f",
+            "glUniform3f",
+            "glUniform4f",
+            "glUniformMatrix2fv",
+            "glUniformMatrix3fv",
+            "glActiveTexture",
+            "glBindTexture",
+            "glGenTextures",
+            "glTexParameteri",
+            "glTexImage2D",
+            "glGenBuffers",
+            "glBindBuffer",
+            "glBufferData",
+            "glGenVertexArrays",
+            "glBindVertexArray",
+            "glEnableVertexAttribArray",
+            "glVertexAttribPointer",
+            "glGetAttribLocation",
+            "glDrawArrays",
+        )
+        return all(hasattr(gl, name) for name in required)
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._camera = Camera3D()
@@ -81,6 +127,8 @@ class PygletWebGLRenderer(PygletRenderer):
         self._texture: Texture3D | None = None
         self._active_shader: Shader3D | None = None
         self._shader_programs: dict[int, int] = {}
+        self._default_shader: Shader3D | None = None
+        self._fallback_texture_id: int | None = None
         self._queued_models: list[
             tuple[Model3D, Material3D | None, Texture3D | None, Shader3D | None]
         ] = []
@@ -167,45 +215,115 @@ class PygletWebGLRenderer(PygletRenderer):
         view = _view_matrix(self._camera)
         mvp = _multiply_matrix(projection, view)
 
-        projection_array = (ctypes.c_float * 16)(*_flatten_column_major(projection))
-        model_view_array = (ctypes.c_float * 16)(*_flatten_column_major(view))
-        gl.glMatrixMode(gl.GL_PROJECTION)
-        gl.glLoadMatrixf(projection_array)
-        gl.glMatrixMode(gl.GL_MODELVIEW)
-        gl.glLoadMatrixf(model_view_array)
-
         for model, material, texture, shader in self._queued_models:
-            program = 0
-            if shader is not None:
-                program = self._program_for_shader(shader)
-                gl.glUseProgram(program)
-                self._apply_builtin_uniforms(gl, program, projection, view, mvp)
-                for uniform_name, uniform_value in shader.uniforms.items():
-                    self._apply_uniform(gl, program, uniform_name, uniform_value)
-            else:
-                gl.glUseProgram(0)
-            self._bind_material_texture(gl, program, material, texture)
-            self._draw_model_immediate(gl, model, material)
-            if shader is not None:
-                gl.glUseProgram(0)
+            active_shader = shader or self._default_shader_program_definition()
+            program = self._program_for_shader(active_shader)
+            gl.glUseProgram(program)
+            self._apply_builtin_uniforms(gl, program, projection, view, mvp)
+            self._apply_material_uniforms(gl, program, material)
+            for uniform_name, uniform_value in active_shader.uniforms.items():
+                self._apply_uniform(gl, program, uniform_name, uniform_value)
+            texture_bound = self._bind_material_texture(gl, program, material, texture)
+            self._draw_model_buffered(gl, program, model)
+            if texture_bound:
+                gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+            gl.glUseProgram(0)
         gl.glDisable(gl.GL_DEPTH_TEST)
 
-    def _draw_model_immediate(self, gl: Any, model: Model3D, material: Material3D | None) -> None:
-        rgba = (1.0, 1.0, 1.0, 1.0) if material is None else material.base_color
-        gl.glColor4f(*rgba)
+    def _default_shader_program_definition(self) -> Shader3D:
+        if self._default_shader is None:
+            self._default_shader = Shader3D(
+                vertex_source="""
+#version 150
+in vec3 a_position;
+in vec2 a_texcoord;
+uniform mat4 u_model_view_projection;
+out vec2 v_texcoord;
+void main() {
+    v_texcoord = a_texcoord;
+    gl_Position = u_model_view_projection * vec4(a_position, 1.0);
+}
+""".strip(),
+                fragment_source="""
+#version 150
+uniform vec4 u_color;
+uniform sampler2D u_texture;
+uniform bool u_use_texture;
+in vec2 v_texcoord;
+out vec4 fragColor;
+void main() {
+    fragColor = u_use_texture ? texture(u_texture, v_texcoord) : u_color;
+}
+""".strip(),
+            )
+        return self._default_shader
+
+    def _draw_model_buffered(self, gl: Any, program: int, model: Model3D) -> None:
+        vertex_data = self._vertex_data_for_model(model)
+        if not vertex_data:
+            return
+        vertex_count = len(vertex_data) // 5
+        data = (ctypes.c_float * len(vertex_data))(*vertex_data)
+        vao = ctypes.c_uint()
+        vbo = ctypes.c_uint()
+        gl.glGenVertexArrays(1, ctypes.byref(vao))
+        gl.glGenBuffers(1, ctypes.byref(vbo))
+        gl.glBindVertexArray(vao.value)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo.value)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, ctypes.sizeof(data), data, gl.GL_STATIC_DRAW)
+
+        stride = 5 * ctypes.sizeof(ctypes.c_float)
+        position_location = gl.glGetAttribLocation(program, b"a_position")
+        if position_location >= 0:
+            gl.glEnableVertexAttribArray(position_location)
+            gl.glVertexAttribPointer(
+                position_location,
+                3,
+                gl.GL_FLOAT,
+                gl.GL_FALSE,
+                stride,
+                ctypes.c_void_p(0),
+            )
+        texcoord_location = gl.glGetAttribLocation(program, b"a_texcoord")
+        if texcoord_location >= 0:
+            gl.glEnableVertexAttribArray(texcoord_location)
+            gl.glVertexAttribPointer(
+                texcoord_location,
+                2,
+                gl.GL_FLOAT,
+                gl.GL_FALSE,
+                stride,
+                ctypes.c_void_p(3 * ctypes.sizeof(ctypes.c_float)),
+            )
+
+        gl.glDrawArrays(gl.GL_TRIANGLES, 0, vertex_count)
+
+        if position_location >= 0:
+            gl.glDisableVertexAttribArray(position_location)
+        if texcoord_location >= 0:
+            gl.glDisableVertexAttribArray(texcoord_location)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+        gl.glBindVertexArray(0)
+        gl.glDeleteBuffers(1, ctypes.byref(vbo))
+        gl.glDeleteVertexArrays(1, ctypes.byref(vao))
+
+    def _vertex_data_for_model(self, model: Model3D) -> list[float]:
+        data: list[float] = []
         for mesh in model.meshes:
+            has_face_texcoords = len(mesh.texcoords) == len(mesh.vertices)
             for face in mesh.faces:
                 triangles = _triangulate(face)
                 if not triangles:
                     continue
-                gl.glBegin(gl.GL_TRIANGLES)
-                try:
-                    for ia, ib, ic in triangles:
-                        for index in (ia, ib, ic):
-                            vertex = mesh.vertices[index]
-                            gl.glVertex3f(vertex.x, vertex.y, vertex.z)
-                finally:
-                    gl.glEnd()
+                for ia, ib, ic in triangles:
+                    for index in (ia, ib, ic):
+                        vertex = mesh.vertices[index]
+                        if has_face_texcoords:
+                            u, v = mesh.texcoords[index]
+                        else:
+                            u, v = 0.0, 0.0
+                        data.extend((vertex.x, vertex.y, vertex.z, u, v))
+        return data
 
     def _program_for_shader(self, shader: Shader3D) -> int:
         key = id(shader)
@@ -274,25 +392,37 @@ class PygletWebGLRenderer(PygletRenderer):
                     (ctypes.c_float * 16)(*_flatten_column_major(matrix)),
                 )
 
+    def _apply_material_uniforms(self, gl: Any, program: int, material: Material3D | None) -> None:
+        color = (1.0, 1.0, 1.0, 1.0) if material is None else material.base_color
+        location = _uniform_location(gl, program, "u_color")
+        if location >= 0:
+            gl.glUniform4f(location, color[0], color[1], color[2], color[3])
+
     def _bind_material_texture(
         self,
         gl: Any,
         program: int,
         material: Material3D | None,
         texture: Texture3D | None,
-    ) -> None:
+    ) -> bool:
         candidate = texture or (material.texture if material is not None else None)
-        if candidate is None:
-            return
-        source = candidate.source
-        if isinstance(source, Image):
+        use_texture = candidate is not None and isinstance(candidate.source, Image)
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        if use_texture:
+            assert candidate is not None
+            source = candidate.source
+            assert isinstance(source, Image)
             texture_id = self._upload_image_texture(gl, source)
-            gl.glActiveTexture(gl.GL_TEXTURE0)
             gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
-            if program:
-                location = _uniform_location(gl, program, "u_texture")
-                if location >= 0:
-                    gl.glUniform1i(location, 0)
+        else:
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self._fallback_texture(gl))
+        location = _uniform_location(gl, program, "u_use_texture")
+        if location >= 0:
+            gl.glUniform1i(location, 1 if use_texture else 0)
+        location = _uniform_location(gl, program, "u_texture")
+        if location >= 0:
+            gl.glUniform1i(location, 0)
+        return use_texture
 
     def _upload_image_texture(self, gl: Any, image: Image) -> int:
         texture_id = ctypes.c_uint()
@@ -314,6 +444,29 @@ class PygletWebGLRenderer(PygletRenderer):
             data,
         )
         return int(texture_id.value)
+
+    def _fallback_texture(self, gl: Any) -> int:
+        if self._fallback_texture_id is not None:
+            return self._fallback_texture_id
+        texture_id = ctypes.c_uint()
+        gl.glGenTextures(1, ctypes.byref(texture_id))
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id.value)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        data = bytes((255, 255, 255, 255))
+        gl.glTexImage2D(
+            gl.GL_TEXTURE_2D,
+            0,
+            gl.GL_RGBA,
+            1,
+            1,
+            0,
+            gl.GL_RGBA,
+            gl.GL_UNSIGNED_BYTE,
+            data,
+        )
+        self._fallback_texture_id = int(texture_id.value)
+        return self._fallback_texture_id
 
     def _apply_uniform(self, gl: Any, program: int, name: str, value: ShaderUniformValue) -> None:
         location = _uniform_location(gl, program, name)

@@ -166,6 +166,19 @@ class FakePyglet3DBackend:
     def present(self) -> None: ...
 
 
+class FakeUpgradeablePygletBackend(FakePyglet3DBackend):
+    def __init__(self):
+        super().__init__()
+        self.capabilities = BackendCapabilities(three_d=True, shaders=False)
+        self.enable_calls = 0
+
+    def enable_native_webgl(self) -> bool:
+        self.enable_calls += 1
+        self.capabilities = BackendCapabilities(three_d=True, shaders=True)
+        self.renderer = Fake3DRenderer()
+        return True
+
+
 def test_texture_requires_p5_image_and_material_apis_clear_bound_texture():
     context = make_context()
 
@@ -212,6 +225,20 @@ def test_set_shader_uniform_requires_active_shader():
 
     with pytest.raises(ShaderUniformError, match="without an active shader"):
         context.set_shader_uniform("u_time", 1.0)
+
+
+def test_shader_can_upgrade_pyglet_backend_from_software_webgl_to_native_shader_path():
+    sketch = _WebGLSketch()
+    backend = FakeUpgradeablePygletBackend()
+    context = SketchContext(sketch, backend)
+    sketch.context = context
+    context.create_canvas(96, 96, renderer=p5.WEBGL)
+    program = p5.create_shader("void main() { gl_Position = vec4(0.0); }", "void main() { }")
+
+    context.shader(program)
+
+    assert backend.enable_calls == 1
+    assert context.renderer is backend.renderer
 
 
 def test_native_pyglet_renderer_path_receives_camera_projection_shader_and_model_calls():

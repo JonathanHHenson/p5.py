@@ -1,4 +1,5 @@
 from p5_py.backends.pyglet import PygletBackend
+from p5_py.backends.pyglet_renderer import PygletRenderer
 from p5_py.backends.pyglet_webgl_renderer import PygletWebGLRenderer
 
 
@@ -33,6 +34,75 @@ class FakeConfig:
 
 class FakeGL:
     Config = FakeConfig
+    glViewport = object()
+    glEnable = object()
+    glDepthMask = object()
+    glClearColor = object()
+    glClear = object()
+    glUseProgram = object()
+    glCreateProgram = object()
+    glCreateShader = object()
+    glShaderSource = object()
+    glCompileShader = object()
+    glAttachShader = object()
+    glLinkProgram = object()
+    glGetShaderiv = object()
+    glGetProgramiv = object()
+    glGetUniformLocation = object()
+    glUniformMatrix4fv = object()
+    glUniform1f = object()
+    glUniform1i = object()
+    glUniform2f = object()
+    glUniform3f = object()
+    glUniform4f = object()
+    glUniformMatrix2fv = object()
+    glUniformMatrix3fv = object()
+    glActiveTexture = object()
+    glBindTexture = object()
+    glGenTextures = object()
+    glTexParameteri = object()
+    glTexImage2D = object()
+    glGenBuffers = object()
+    glBindBuffer = object()
+    glBufferData = object()
+    glGenVertexArrays = object()
+    glBindVertexArray = object()
+    glEnableVertexAttribArray = object()
+    glVertexAttribPointer = object()
+    glGetAttribLocation = object()
+    glDrawArrays = object()
+
+
+class FakeModernOnlyGL:
+    Config = FakeConfig
+    glViewport = object()
+    glEnable = object()
+    glDepthMask = object()
+    glClearColor = object()
+    glClear = object()
+    glUseProgram = object()
+    glCreateProgram = object()
+    glCreateShader = object()
+    glShaderSource = object()
+    glCompileShader = object()
+    glAttachShader = object()
+    glLinkProgram = object()
+    glGetShaderiv = object()
+    glGetProgramiv = object()
+    glGetUniformLocation = object()
+    glUniformMatrix4fv = object()
+    glUniform1f = object()
+    glUniform1i = object()
+    glUniform2f = object()
+    glUniform3f = object()
+    glUniform4f = object()
+    glUniformMatrix2fv = object()
+    glUniformMatrix3fv = object()
+    glActiveTexture = object()
+    glBindTexture = object()
+    glGenTextures = object()
+    glTexParameteri = object()
+    glTexImage2D = object()
 
 
 class FakePygletModule:
@@ -57,6 +127,20 @@ class FakeFramebufferPygletModule:
         @staticmethod
         def Window(width, height, caption, vsync=False, **kwargs):
             return FakeFramebufferWindow()
+
+
+class FakeModernOnlyPygletModule:
+    graphics = FakeGraphics()
+    gl = FakeModernOnlyGL()
+    last_window: FakePixelRatioWindow | None = None
+    last_window_kwargs: dict | None = None
+
+    class window:
+        @staticmethod
+        def Window(width, height, caption, vsync=False, **kwargs):
+            FakeModernOnlyPygletModule.last_window = FakePixelRatioWindow(vsync=vsync)
+            FakeModernOnlyPygletModule.last_window_kwargs = kwargs
+            return FakeModernOnlyPygletModule.last_window
 
 
 def test_pyglet_framebuffer_size_uses_framebuffer_size():
@@ -108,8 +192,24 @@ def test_pyglet_create_canvas_uses_native_webgl_renderer_and_depth_config():
     backend.create_canvas(320, 240, renderer="webgl")
 
     assert isinstance(backend.renderer, PygletWebGLRenderer)
+    assert backend.capabilities.shaders is True
     assert FakePygletModule.last_window_kwargs is not None
     config = FakePygletModule.last_window_kwargs["config"]
+    assert isinstance(config, FakeConfig)
+    assert config.kwargs == {"double_buffer": True, "depth_size": 24}
+
+
+def test_pyglet_create_canvas_falls_back_to_software_webgl_when_native_gl_is_incomplete():
+    backend = PygletBackend()
+    backend._pyglet = FakeModernOnlyPygletModule()
+
+    backend.create_canvas(320, 240, renderer="webgl")
+
+    assert isinstance(backend.renderer, PygletRenderer)
+    assert backend.capabilities.three_d is True
+    assert backend.capabilities.shaders is False
+    assert FakeModernOnlyPygletModule.last_window_kwargs is not None
+    config = FakeModernOnlyPygletModule.last_window_kwargs["config"]
     assert isinstance(config, FakeConfig)
     assert config.kwargs == {"double_buffer": True, "depth_size": 24}
 
