@@ -19,6 +19,7 @@ class CanvasState:
     physical_width: int = 100
     physical_height: int = 100
     pixel_density: float = 1.0
+    renderer: str = c.P2D
     created: bool = False
 
 

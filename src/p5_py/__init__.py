@@ -218,6 +218,7 @@ from p5_py.api.global_mode import (
     width,
 )
 from p5_py.assets.image import Image, create_image
+from p5_py.assets.sound import Sound
 from p5_py.assets.text import Font
 from p5_py.backends import available_backends, register_backend
 from p5_py.constants import (
@@ -409,6 +410,7 @@ __all__ = [
     "Sketch",
     "Color",
     "Image",
+    "Sound",
     "Font",
     "Vector",
     "P5PyError",

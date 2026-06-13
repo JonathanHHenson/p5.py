@@ -1,0 +1,5 @@
+# Simple packaged triangle for load_model package-resource tests
+v 0.0 0.0 0.0
+v 2.0 0.0 0.0
+v 0.0 1.0 0.0
+f 1 2 3

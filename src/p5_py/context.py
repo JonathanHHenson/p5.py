@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 from p5_py import constants as c
 from p5_py.assets.image import Image
@@ -19,8 +20,28 @@ from p5_py.core.geometry import (
 )
 from p5_py.core.state import SketchState, StateStackEntry
 from p5_py.core.transform import Matrix2D
+from p5_py.drawing.renderer3d import (
+    Camera3D,
+    Light3D,
+    Material3D,
+    Mesh3D,
+    Model3D,
+    OrthographicProjection,
+    PerspectiveProjection,
+    Texture3D,
+    Vec3,
+)
+from p5_py.drawing.software3d import (
+    box_model,
+    plane_model,
+    rasterize_faces_image,
+    shade_model_faces,
+    sphere_model,
+)
 from p5_py.events.input_state import KeyboardEvent, MouseEvent, TouchEvent, TouchPoint
-from p5_py.exceptions import ArgumentValidationError
+from p5_py.exceptions import ArgumentValidationError, BackendCapabilityError
+
+_MATERIAL_UNSET = object()
 
 
 class SketchContext:
@@ -32,6 +53,16 @@ class SketchContext:
         self.renderer = backend.renderer
         self.state = SketchState()
         self.pixels: Sequence[int] = []
+        self._camera3d = Camera3D()
+        self._projection3d = PerspectiveProjection()
+        self._lights3d: list[Light3D] = []
+        self._material3d: Material3D | None = None
+        self._normal_material3d = False
+        self._material3d_style_stack: list[tuple[Material3D | None, bool]] = []
+        self._frame_mouse_dx = 0.0
+        self._frame_mouse_dy = 0.0
+        self._frame_scroll_x = 0.0
+        self._frame_scroll_y = 0.0
 
     @property
     def width(self) -> int:
@@ -61,11 +92,21 @@ class SketchContext:
         self,
         width: int,
         height: int,
+        renderer: str = c.P2D,
         *,
         pixel_density: float | None = None,
     ) -> None:
+        if renderer not in {c.P2D, c.WEBGL}:
+            raise ArgumentValidationError(f"Unsupported renderer {renderer!r}.")
+        if renderer == c.WEBGL and not self.backend.capabilities.three_d:
+            raise BackendCapabilityError(
+                f"Backend {self.backend.name!r} does not support renderer={c.WEBGL!r}."
+            )
         self.backend.create_canvas(int(width), int(height), pixel_density)
         self.renderer = self.backend.renderer
+        self.state.canvas.renderer = renderer
+        if renderer == c.WEBGL:
+            self._reset_3d_state()
         self._sync_canvas_state()
         self.state.canvas.created = True
 
@@ -78,7 +119,11 @@ class SketchContext:
 
     def ensure_canvas(self) -> None:
         if not self.state.canvas.created:
-            self.create_canvas(self.state.canvas.width, self.state.canvas.height)
+            self.create_canvas(
+                self.state.canvas.width,
+                self.state.canvas.height,
+                renderer=self.state.canvas.renderer,
+            )
 
     def pixel_density(self, value: float | None = None) -> float:
         if value is None:
@@ -90,6 +135,16 @@ class SketchContext:
 
     def display_density(self) -> float:
         return self.backend.display_density()
+
+    def begin_frame(self) -> None:
+        if self.state.canvas.renderer == c.WEBGL:
+            self._lights3d = []
+
+    def end_frame(self) -> None:
+        self._frame_mouse_dx = 0.0
+        self._frame_mouse_dy = 0.0
+        self._frame_scroll_x = 0.0
+        self._frame_scroll_y = 0.0
 
     def _sync_canvas_state(self) -> None:
         self.state.canvas.width = self.renderer.width
@@ -334,6 +389,7 @@ class SketchContext:
         self.state.stack.append(
             StateStackEntry(self.state.style.copy(), self.state.transform.matrix)
         )
+        self._material3d_style_stack.append((self._material3d, self._normal_material3d))
 
     def pop(self) -> None:
         if not self.state.stack:
@@ -341,6 +397,7 @@ class SketchContext:
         entry = self.state.stack.pop()
         self.state.style = entry.style
         self.state.transform.matrix = entry.matrix
+        self._material3d, self._normal_material3d = self._material3d_style_stack.pop()
 
     def translate(self, x: float, y: float) -> None:
         self.state.transform.matrix = self.state.transform.matrix.multiply(
@@ -402,6 +459,257 @@ class SketchContext:
 
     def is_looping(self) -> bool:
         return self.state.looping
+
+    def create_camera(self, *args: object) -> Camera3D:
+        return self.camera(*args)
+
+    def camera(self, *args: object) -> Camera3D:
+        self._require_webgl_mode("camera")
+        if len(args) == 0:
+            camera = Camera3D()
+        elif len(args) == 1 and isinstance(args[0], Camera3D):
+            camera = args[0]
+        elif len(args) == 9 and all(isinstance(value, int | float) for value in args):
+            numeric_args = self._numeric_values(args)
+            camera = Camera3D(
+                eye=Vec3(numeric_args[0], numeric_args[1], numeric_args[2]),
+                target=Vec3(numeric_args[3], numeric_args[4], numeric_args[5]),
+                up=Vec3(numeric_args[6], numeric_args[7], numeric_args[8]),
+            )
+        else:
+            raise ArgumentValidationError(
+                "camera() accepts no arguments, a Camera3D, or nine numeric values."
+            )
+        self._camera3d = camera
+        return camera
+
+    def perspective(self, *args: object) -> PerspectiveProjection:
+        self._require_webgl_mode("perspective")
+        if len(args) > 4 or not all(isinstance(value, int | float) for value in args):
+            raise ArgumentValidationError(
+                "perspective() accepts fov, aspect, near, and far numeric values."
+            )
+        numeric_args = self._numeric_values(args)
+        fov_y = 60.0 if len(numeric_args) == 0 else math.degrees(self._angle(numeric_args[0]))
+        aspect = None if len(numeric_args) < 2 else numeric_args[1]
+        near = 0.1 if len(numeric_args) < 3 else numeric_args[2]
+        far = 10_000.0 if len(numeric_args) < 4 else numeric_args[3]
+        projection = PerspectiveProjection(fov_y=fov_y, aspect=aspect, near=near, far=far)
+        self._projection3d = projection
+        return projection
+
+    def ortho(self, *args: object) -> OrthographicProjection:
+        self._require_webgl_mode("ortho")
+        if len(args) not in {0, 2, 4} or not all(isinstance(value, int | float) for value in args):
+            raise ArgumentValidationError(
+                "ortho() accepts no arguments, width/height, or width/height/near/far."
+            )
+        numeric_args = self._numeric_values(args)
+        ortho_width = float(self.width) if len(numeric_args) == 0 else numeric_args[0]
+        ortho_height = float(self.height) if len(numeric_args) == 0 else numeric_args[1]
+        near = 0.1 if len(numeric_args) < 4 else numeric_args[2]
+        far = 10_000.0 if len(numeric_args) < 4 else numeric_args[3]
+        projection = OrthographicProjection(
+            width=ortho_width,
+            height=ortho_height,
+            near=near,
+            far=far,
+        )
+        self._projection3d = projection
+        return projection
+
+    def orbit_control(self, *args: object) -> Camera3D:
+        self._require_webgl_mode("orbit_control")
+        if len(args) > 3 or not all(isinstance(value, int | float) for value in args):
+            raise ArgumentValidationError(
+                "orbit_control() accepts up to three numeric sensitivity values."
+            )
+        numeric_args = self._numeric_values(args)
+        sensitivity_x = 1.0 if len(numeric_args) == 0 else numeric_args[0]
+        sensitivity_y = sensitivity_x if len(numeric_args) < 2 else numeric_args[1]
+        sensitivity_z = 1.0 if len(numeric_args) < 3 else numeric_args[2]
+        if sensitivity_x <= 0 or sensitivity_y <= 0 or sensitivity_z <= 0:
+            raise ArgumentValidationError("orbit_control() sensitivities must be positive.")
+
+        dx = self._frame_mouse_dx
+        dy = self._frame_mouse_dy
+        scroll_y = self._frame_scroll_y
+        offset = Vec3(
+            self._camera3d.eye.x - self._camera3d.target.x,
+            self._camera3d.eye.y - self._camera3d.target.y,
+            self._camera3d.eye.z - self._camera3d.target.z,
+        )
+        radius = math.sqrt(offset.x * offset.x + offset.y * offset.y + offset.z * offset.z)
+        if radius <= 0:
+            raise ArgumentValidationError("orbit_control() requires a non-zero camera distance.")
+
+        azimuth = math.atan2(offset.x, offset.z)
+        polar = math.acos(max(-1.0, min(1.0, offset.y / radius)))
+        if self.state.input.mouse_is_pressed:
+            azimuth -= dx * 0.01 * sensitivity_x
+            polar = max(1e-3, min(math.pi - 1e-3, polar + dy * 0.01 * sensitivity_y))
+        if scroll_y != 0.0:
+            radius = max(1.0, radius * math.exp(-scroll_y * 0.1 * sensitivity_z))
+
+        sin_polar = math.sin(polar)
+        new_eye = Vec3(
+            self._camera3d.target.x + radius * sin_polar * math.sin(azimuth),
+            self._camera3d.target.y + radius * math.cos(polar),
+            self._camera3d.target.z + radius * sin_polar * math.cos(azimuth),
+        )
+        self._camera3d = Camera3D(eye=new_eye, target=self._camera3d.target, up=Vec3(0.0, 1.0, 0.0))
+        self._frame_mouse_dx = 0.0
+        self._frame_mouse_dy = 0.0
+        self._frame_scroll_x = 0.0
+        self._frame_scroll_y = 0.0
+        return self._camera3d
+
+    def ambient_light(self, *args: object) -> None:
+        self._require_webgl_mode("ambient_light")
+        self._lights3d.append(Light3D(kind="ambient", color=self._color_to_rgba(self.color(*args))))
+
+    def directional_light(self, *args: object) -> None:
+        self._require_webgl_mode("directional_light")
+        color, tail = self._split_color_args(args, tail_count=3)
+        self._lights3d.append(
+            Light3D(
+                kind="directional",
+                color=self._color_to_rgba(color),
+                direction=Vec3(float(tail[0]), float(tail[1]), float(tail[2])),
+            )
+        )
+
+    def point_light(self, *args: object) -> None:
+        self._require_webgl_mode("point_light")
+        color, tail = self._split_color_args(args, tail_count=3)
+        self._lights3d.append(
+            Light3D(
+                kind="point",
+                color=self._color_to_rgba(color),
+                position=Vec3(float(tail[0]), float(tail[1]), float(tail[2])),
+            )
+        )
+
+    def normal_material(self) -> None:
+        self._require_webgl_mode("normal_material")
+        self._material3d = None
+        self._normal_material3d = True
+
+    def ambient_material(self, *args: object) -> None:
+        self._require_webgl_mode("ambient_material")
+        self._material3d = self._replace_material(
+            base_color=self._color_to_rgba(self.color(*args)),
+            texture=None,
+        )
+        self._normal_material3d = False
+
+    def specular_material(self, *args: object) -> None:
+        self._require_webgl_mode("specular_material")
+        color = self._color_to_rgba(self.color(*args))
+        self._material3d = self._replace_material(
+            base_color=color,
+            specular_color=color,
+            texture=None,
+        )
+        self._normal_material3d = False
+
+    def shininess(self, value: float) -> None:
+        self._require_webgl_mode("shininess")
+        if value <= 0:
+            raise ArgumentValidationError("shininess() must be positive.")
+        self._material3d = self._replace_material(shininess=float(value))
+
+    def texture(self, image: Image) -> None:
+        self._require_webgl_mode("texture")
+        if not isinstance(image, Image):
+            raise ArgumentValidationError("texture() requires a p5_py Image object.")
+        self._material3d = self._replace_material(
+            texture=Texture3D(source=image, width=image.width, height=image.height)
+        )
+        self._normal_material3d = False
+
+    def plane(self, width: float, height: float | None = None) -> None:
+        self.model(plane_model(float(width), None if height is None else float(height)))
+
+    def box(self, width: float, height: float | None = None, depth: float | None = None) -> None:
+        self.model(
+            box_model(
+                float(width),
+                None if height is None else float(height),
+                None if depth is None else float(depth),
+            )
+        )
+
+    def sphere(self, radius: float, detail_x: int = 24, detail_y: int = 16) -> None:
+        self.model(sphere_model(float(radius), int(detail_x), int(detail_y)))
+
+    def model(self, shape: object) -> None:
+        self._require_webgl_mode("model")
+        if isinstance(shape, Mesh3D):
+            model = Model3D(meshes=(shape,))
+        elif isinstance(shape, Model3D):
+            model = shape
+        else:
+            raise ArgumentValidationError("model() requires a Mesh3D or Model3D value.")
+
+        faces = shade_model_faces(
+            model,
+            self._camera3d,
+            self._projection3d,
+            viewport_width=float(self.width),
+            viewport_height=float(self.height),
+            base_material=self._effective_3d_material(),
+            lights=tuple(self._lights3d),
+            normal_material=self._normal_material3d,
+        )
+        draw_fill = (
+            self._normal_material3d
+            or self._material3d is not None
+            or self.state.style.fill_color is not None
+        )
+        if draw_fill:
+            textured_faces = [
+                face for face in faces if face.texture is not None and face.texcoords is not None
+            ]
+            if textured_faces:
+                overlay = rasterize_faces_image(
+                    faces,
+                    viewport_width=float(self.width),
+                    viewport_height=float(self.height),
+                )
+                overlay_style = self.state.style.copy()
+                overlay_style.fill_color = None
+                overlay_style.stroke_color = None
+                self.renderer.draw_image(
+                    overlay,
+                    0.0,
+                    0.0,
+                    float(self.width),
+                    float(self.height),
+                    overlay_style,
+                    self.state.transform.matrix,
+                )
+            else:
+                for face in faces:
+                    fill_style = self.state.style.copy()
+                    fill_style.fill_color = self._rgba_float_to_color(face.color)
+                    fill_style.stroke_color = None
+                    self.renderer.polygon(
+                        list(face.points),
+                        fill_style,
+                        self.state.transform.matrix,
+                        close=True,
+                    )
+        if self.state.style.stroke_color is not None:
+            stroke_style = self.state.style.copy()
+            stroke_style.fill_color = None
+            for face in faces:
+                self.renderer.polygon(
+                    list(face.points),
+                    stroke_style,
+                    self.state.transform.matrix,
+                    close=True,
+                )
 
     def image(self, image: Image, x: float, y: float, *args: float) -> None:
         if not isinstance(image, Image):
@@ -624,6 +932,12 @@ class SketchContext:
             pressed = True
         elif event.type == "mouse_released":
             pressed = False
+        if event.type in {"mouse_moved", "mouse_dragged"}:
+            self._frame_mouse_dx += event.dx
+            self._frame_mouse_dy += event.dy
+        if event.type == "mouse_wheel":
+            self._frame_scroll_x += event.scroll_x
+            self._frame_scroll_y += event.scroll_y
         self.update_mouse_event(event, pressed=pressed)
         self.sketch._dispatch_callback(event.type, event)
 
@@ -657,6 +971,86 @@ class SketchContext:
 
     def key_is_down(self, key_code: int) -> bool:
         return self.state.input.key_is_down(key_code)
+
+    def _require_webgl_mode(self, api_name: str) -> None:
+        if self.state.canvas.renderer != c.WEBGL:
+            raise BackendCapabilityError(
+                f"{api_name}() requires create_canvas(..., renderer={c.WEBGL!r})."
+            )
+
+    def _reset_3d_state(self) -> None:
+        self._camera3d = Camera3D()
+        self._projection3d = PerspectiveProjection()
+        self._lights3d = []
+        self._material3d = None
+        self._normal_material3d = False
+        self._material3d_style_stack = []
+        self._frame_mouse_dx = 0.0
+        self._frame_mouse_dy = 0.0
+        self._frame_scroll_x = 0.0
+        self._frame_scroll_y = 0.0
+
+    def _effective_3d_material(self) -> Material3D:
+        if self._material3d is not None:
+            return self._material3d
+        fill = self.state.style.fill_color or Color(255, 255, 255, 255)
+        return Material3D(base_color=self._color_to_rgba(fill))
+
+    def _replace_material(
+        self,
+        *,
+        base_color: tuple[float, float, float, float] | None = None,
+        specular_color: tuple[float, float, float, float] | None = None,
+        shininess: float | None = None,
+        texture: Texture3D | None | object = _MATERIAL_UNSET,
+    ) -> Material3D:
+        current = self._effective_3d_material()
+        return Material3D(
+            base_color=current.base_color if base_color is None else base_color,
+            emissive_color=current.emissive_color,
+            specular_color=current.specular_color if specular_color is None else specular_color,
+            shininess=current.shininess if shininess is None else shininess,
+            texture=(
+                current.texture if texture is _MATERIAL_UNSET else cast(Texture3D | None, texture)
+            ),
+        )
+
+    def _split_color_args(
+        self,
+        args: Sequence[object],
+        *,
+        tail_count: int,
+    ) -> tuple[Color, tuple[float, ...]]:
+        for color_count in (4, 3, 2, 1):
+            if len(args) != color_count + tail_count:
+                continue
+            color = self.color(*args[:color_count])
+            tail = args[color_count:]
+            if all(isinstance(value, int | float) for value in tail):
+                numeric_tail = self._numeric_values(tail)
+                return color, numeric_tail
+        raise ArgumentValidationError(
+            "Light APIs require one to four color values followed by the expected coordinates."
+        )
+
+    def _numeric_values(self, values: Sequence[object]) -> tuple[float, ...]:
+        numeric: list[float] = []
+        for value in values:
+            if not isinstance(value, int | float):
+                raise ArgumentValidationError("Expected numeric values.")
+            numeric.append(float(value))
+        return tuple(numeric)
+
+    def _color_to_rgba(self, color: Color) -> tuple[float, float, float, float]:
+        return (
+            color.r / 255.0,
+            color.g / 255.0,
+            color.b / 255.0,
+            color.a / 255.0,
+        )
+
+    def _rgba_float_to_color(self, rgba: tuple[float, float, float, float]) -> Color:
+        return Color(*(int(round(max(0.0, min(1.0, channel)) * 255.0)) for channel in rgba))
 
     def _angle(self, value: float) -> float:
         mode = getattr(self, "angle_mode_value", c.RADIANS)

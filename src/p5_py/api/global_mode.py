@@ -60,8 +60,14 @@ def run(
     return sketch.run(max_frames=max_frames)
 
 
-def create_canvas(width: int, height: int, *, pixel_density: float | None = None) -> None:
-    require_context().create_canvas(width, height, pixel_density=pixel_density)
+def create_canvas(
+    width: int,
+    height: int,
+    renderer: str = "p2d",
+    *,
+    pixel_density: float | None = None,
+) -> None:
+    require_context().create_canvas(width, height, renderer=renderer, pixel_density=pixel_density)
 
 
 def resize_canvas(width: int, height: int, *, pixel_density: float | None = None) -> None:

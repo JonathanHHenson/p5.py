@@ -52,10 +52,12 @@ class Sketch:
         if not should_draw:
             return
         context.state.timing.begin_frame()
+        context.begin_frame()
         context.renderer.begin_frame()
         with activate_context(context):
             self.draw()
         context.renderer.end_frame()
+        context.end_frame()
         context.state.timing.frame_count += 1
         context.state.redraw_requested = False
 
@@ -81,8 +83,15 @@ class Sketch:
         return self._ctx.is_looping()
 
     # Canvas / style / drawing delegates
-    def create_canvas(self, width: int, height: int, *, pixel_density: float | None = None) -> None:
-        self._ctx.create_canvas(width, height, pixel_density=pixel_density)
+    def create_canvas(
+        self,
+        width: int,
+        height: int,
+        renderer: str = "p2d",
+        *,
+        pixel_density: float | None = None,
+    ) -> None:
+        self._ctx.create_canvas(width, height, renderer=renderer, pixel_density=pixel_density)
 
     def resize_canvas(self, width: int, height: int, *, pixel_density: float | None = None) -> None:
         self._ctx.resize_canvas(width, height, pixel_density=pixel_density)
@@ -140,6 +149,57 @@ class Sketch:
 
     def arc(self, *args: Any) -> None:
         self._ctx.arc(*args)
+
+    def create_camera(self, *args: object):
+        return self._ctx.create_camera(*args)
+
+    def camera(self, *args: object):
+        return self._ctx.camera(*args)
+
+    def perspective(self, *args: object):
+        return self._ctx.perspective(*args)
+
+    def ortho(self, *args: object):
+        return self._ctx.ortho(*args)
+
+    def orbit_control(self, *args: object):
+        return self._ctx.orbit_control(*args)
+
+    def ambient_light(self, *args: object) -> None:
+        self._ctx.ambient_light(*args)
+
+    def directional_light(self, *args: object) -> None:
+        self._ctx.directional_light(*args)
+
+    def point_light(self, *args: object) -> None:
+        self._ctx.point_light(*args)
+
+    def normal_material(self) -> None:
+        self._ctx.normal_material()
+
+    def ambient_material(self, *args: object) -> None:
+        self._ctx.ambient_material(*args)
+
+    def specular_material(self, *args: object) -> None:
+        self._ctx.specular_material(*args)
+
+    def shininess(self, value: float) -> None:
+        self._ctx.shininess(value)
+
+    def texture(self, image) -> None:
+        self._ctx.texture(image)
+
+    def plane(self, width: float, height: float | None = None) -> None:
+        self._ctx.plane(width, height)
+
+    def box(self, width: float, height: float | None = None, depth: float | None = None) -> None:
+        self._ctx.box(width, height, depth)
+
+    def sphere(self, radius: float, detail_x: int = 24, detail_y: int = 16) -> None:
+        self._ctx.sphere(radius, detail_x, detail_y)
+
+    def model(self, shape: object) -> None:
+        self._ctx.model(shape)
 
     def push(self) -> None:
         self._ctx.push()

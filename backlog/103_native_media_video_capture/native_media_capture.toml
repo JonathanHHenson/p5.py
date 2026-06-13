@@ -9,7 +9,7 @@ acceptance_criteria = '''
 The project defines or implements Python-native replacements for `create_audio`, `create_video`, and `create_capture` with explicit lifecycle and capability semantics. Privacy, permission, and platform implications are documented, optional dependencies are justified, and unsupported environments fail predictably.
 '''
 priotity = 'low'
-status = 'TODO'
+status = 'IN_PROGRESS'
 
 [my_pbi.task_1]
 order = 1
@@ -27,7 +27,7 @@ Evaluate and choose native dependency paths for camera capture, microphone captu
 
 [my_pbi.task_3]
 order = 3
-status = 'TODO'
+status = 'IN_PROGRESS'
 description = '''
 Implement or stage `create_audio`, `create_video`, and `create_capture` with clear capability gating, permission handling guidance, and predictable headless behavior.
 '''

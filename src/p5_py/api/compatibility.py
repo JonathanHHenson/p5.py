@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from p5_py.api import advanced as _advanced
 from p5_py.exceptions import UnsupportedFeatureError
 
 COMPATIBILITY_MATRIX = {
@@ -16,19 +17,19 @@ COMPATIBILITY_MATRIX = {
     "dom": "excluded",
     "xml": "excluded",
     "table": "excluded",
-    "webgl": "deferred",
-    "webgl_renderer": "deferred",
-    "3d_primitives": "deferred",
-    "camera_projection": "deferred",
-    "lights_materials": "deferred",
-    "textures": "deferred",
-    "models": "deferred",
+    "webgl": "partial",
+    "webgl_renderer": "partial",
+    "3d_primitives": "partial",
+    "camera_projection": "partial",
+    "lights_materials": "partial",
+    "textures": "partial",
+    "models": "partial",
     "shaders": "deferred",
-    "sound": "deferred",
-    "sound_playback": "deferred",
+    "sound": "partial",
+    "sound_playback": "partial",
     "sound_analysis": "deferred",
     "sound_synthesis": "deferred",
-    "media_playback": "deferred",
+    "media_playback": "partial",
     "media_capture": "deferred",
 }
 
@@ -40,8 +41,9 @@ def unsupported_feature(name: str, reason: str) -> None:
 def _deferred_webgl_api(name: str) -> None:
     unsupported_feature(
         name,
-        "WEBGL-like 3D rendering is deferred pending a native Python renderer. "
-        "See docs/advanced_3d_media_strategy.md.",
+        "This WEBGL-style API is deferred on the current software 3D path. "
+        "See docs/advanced_3d_media_strategy.md for the supported slice "
+        "and native-renderer follow-on work.",
     )
 
 
@@ -85,76 +87,76 @@ def load_table(*_args, **_kwargs) -> None:
     )
 
 
-def create_camera(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("create_camera/createCamera")
+def create_camera(*args, **kwargs):
+    return _advanced.create_camera(*args, **kwargs)
 
 
-def camera(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("camera")
+def camera(*args, **kwargs):
+    return _advanced.camera(*args, **kwargs)
 
 
-def perspective(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("perspective")
+def perspective(*args, **kwargs):
+    return _advanced.perspective(*args, **kwargs)
 
 
-def ortho(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("ortho")
+def ortho(*args, **kwargs):
+    return _advanced.ortho(*args, **kwargs)
 
 
-def orbit_control(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("orbit_control/orbitControl")
+def orbit_control(*args, **kwargs):
+    return _advanced.orbit_control(*args, **kwargs)
 
 
-def ambient_light(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("ambient_light/ambientLight")
+def ambient_light(*args, **kwargs) -> None:
+    _advanced.ambient_light(*args, **kwargs)
 
 
-def directional_light(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("directional_light/directionalLight")
+def directional_light(*args, **kwargs) -> None:
+    _advanced.directional_light(*args, **kwargs)
 
 
-def point_light(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("point_light/pointLight")
+def point_light(*args, **kwargs) -> None:
+    _advanced.point_light(*args, **kwargs)
 
 
-def normal_material(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("normal_material/normalMaterial")
+def normal_material(*args, **kwargs) -> None:
+    _advanced.normal_material(*args, **kwargs)
 
 
-def ambient_material(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("ambient_material/ambientMaterial")
+def ambient_material(*args, **kwargs) -> None:
+    _advanced.ambient_material(*args, **kwargs)
 
 
-def specular_material(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("specular_material/specularMaterial")
+def specular_material(*args, **kwargs) -> None:
+    _advanced.specular_material(*args, **kwargs)
 
 
-def shininess(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("shininess")
+def shininess(*args, **kwargs) -> None:
+    _advanced.shininess(*args, **kwargs)
 
 
-def texture(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("texture")
+def texture(*args, **kwargs) -> None:
+    _advanced.texture(*args, **kwargs)
 
 
-def plane(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("plane")
+def plane(*args, **kwargs) -> None:
+    _advanced.plane(*args, **kwargs)
 
 
-def box(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("box")
+def box(*args, **kwargs) -> None:
+    _advanced.box(*args, **kwargs)
 
 
-def sphere(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("sphere")
+def sphere(*args, **kwargs) -> None:
+    _advanced.sphere(*args, **kwargs)
 
 
-def load_model(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("load_model/loadModel")
+def load_model(*args, **kwargs):
+    return _advanced.load_model(*args, **kwargs)
 
 
-def model(*_args, **_kwargs) -> None:
-    _deferred_webgl_api("model")
+def model(*args, **kwargs) -> None:
+    _advanced.model(*args, **kwargs)
 
 
 def load_shader(*_args, **_kwargs) -> None:
@@ -173,12 +175,12 @@ def reset_shader(*_args, **_kwargs) -> None:
     _deferred_webgl_api("reset_shader/resetShader")
 
 
-def load_sound(*_args, **_kwargs) -> None:
-    _deferred_sound_api("load_sound/loadSound")
+def load_sound(*args, **kwargs):
+    return _advanced.load_sound(*args, **kwargs)
 
 
-def create_audio(*_args, **_kwargs) -> None:
-    _deferred_media_api("create_audio/createAudio")
+def create_audio(*args, **kwargs):
+    return _advanced.create_audio(*args, **kwargs)
 
 
 def create_video(*_args, **_kwargs) -> None:

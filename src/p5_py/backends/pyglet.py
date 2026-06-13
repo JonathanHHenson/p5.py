@@ -39,6 +39,7 @@ class PygletBackend:
                 c.SCREEN,
             }
         ),
+        three_d=True,
     )
 
     def __init__(self) -> None:

@@ -1,6 +1,6 @@
 # Advanced 3D, model/shader, and sound/media strategy
 
-Epic 100 covers optional advanced features that should not disrupt the stable 2D-first runtime. This document records the proposed direction, current prototype, and compatibility status for WEBGL-like rendering, model/shader APIs, sound, and native media support.
+Epic 100 established the protocol and math-only projection prototype for optional advanced features without disrupting the stable 2D-first runtime. Epic 101 now adds a first complete software milestone: a software-projected WEBGL-style path with orbit controls and texture mapping, backend-neutral OBJ loading, and basic sound playback while native GPU rendering, shaders, video, and capture remain follow-on work. This document records the current implementation status, limitations, and follow-on direction.
 
 ## Goals
 
@@ -31,9 +31,9 @@ Epic 100 covers optional advanced features that should not disrupt the stable 2D
 
 ### Recommendation
 
-Use the existing Pyglet backend as the first native 3D host, but keep 3D rendering behind a separate optional protocol. The next implementation milestone should be a dedicated renderer, likely named `Pyglet3DRenderer` or an extension of `PygletRenderer`, that owns OpenGL buffers, shader programs, depth testing, camera/projection matrices, and 3D resource lifetimes.
+Use a software-projected WEBGL-style path as the first stable cross-backend milestone. The current implementation projects and shades 3D faces in Python, then draws the result through the existing 2D renderers so headless and Pyglet sketches can share deterministic semantics.
 
-ModernGL can be reconsidered if raw Pyglet/OpenGL code becomes difficult to maintain. It should be introduced only after a small Pyglet-hosted prototype shows that the extra dependency materially simplifies geometry, shader, and texture handling.
+A true native Pyglet/OpenGL renderer is still a planned follow-on milestone. ModernGL can be reconsidered later if raw Pyglet/OpenGL code becomes difficult to maintain or the software path becomes a performance bottleneck.
 
 ### Protocol shape
 
@@ -45,11 +45,11 @@ ModernGL can be reconsidered if raw Pyglet/OpenGL code becomes difficult to main
 - `Shader3D` and uniform types for Python-native shader loading.
 - `Renderer3D` methods for camera, projection, lights, material, texture, shader, model, mesh, and primitive drawing.
 
-The existing 2D `Renderer` protocol remains unchanged. Backends that do not implement `Renderer3D` should keep reporting `BackendCapabilities.three_d=False` and raise clear `UnsupportedFeatureError` or `BackendCapabilityError` paths when a future public 3D API is called.
+The existing 2D `Renderer` protocol remains unchanged. The current milestone keeps 3D projection logic in `SketchContext` plus `src/p5_py/drawing/software3d.py`, which means existing headless and Pyglet backends can report `three_d=True` without introducing a dedicated GPU renderer yet. The `Renderer3D` protocol remains the target contract for a later native backend.
 
 ### Minimal prototype
 
-`src/p5_py/drawing/prototype3d.py` is a dependency-free projection prototype. It renders no pixels, but it validates the hard-to-change semantics first:
+`src/p5_py/drawing/prototype3d.py` remains the dependency-free math prototype that validated the hard-to-change semantics first. The public WEBGL-style APIs now build on that work through `src/p5_py/drawing/software3d.py`, which adds generated primitives, face projection, simple lighting/material shading, and `model()` drawing on the existing renderers.
 
 - cube mesh generation with indexed faces,
 - `Camera3D` eye/target/up handling,
@@ -76,7 +76,7 @@ segments = wireframe_segments(
 )
 ```
 
-A future renderer can consume the same `Camera3D`, `Projection3D`, `Mesh3D`, and `Model3D` types while replacing the wireframe projection with native GPU rendering.
+A future renderer can consume the same `Camera3D`, `Projection3D`, `Mesh3D`, and `Model3D` types while replacing the software projection/shading path with native GPU rendering.
 
 ### Future WEBGL-style public API
 
@@ -84,21 +84,21 @@ The eventual Pythonic public API should prefer snake_case, with p5.js aliases wh
 
 | Pythonic API | p5.js alias | Status |
 |---|---|---|
-| `create_canvas(width, height, renderer=WEBGL)` | `createCanvas(..., WEBGL)` | Deferred |
-| `create_camera()` | `createCamera()` | Deferred stub |
-| `camera(...)` | `camera(...)` | Deferred stub |
-| `perspective(...)` | `perspective(...)` | Deferred stub |
-| `ortho(...)` | `ortho(...)` | Deferred stub |
-| `orbit_control()` | `orbitControl()` | Deferred stub |
-| `ambient_light(...)` | `ambientLight(...)` | Deferred stub |
-| `directional_light(...)` | `directionalLight(...)` | Deferred stub |
-| `point_light(...)` | `pointLight(...)` | Deferred stub |
-| `normal_material()` | `normalMaterial()` | Deferred stub |
-| `ambient_material(...)` | `ambientMaterial(...)` | Deferred stub |
-| `specular_material(...)` | `specularMaterial(...)` | Deferred stub |
-| `shininess(value)` | `shininess(value)` | Deferred stub |
-| `texture(image)` | `texture(image)` | Deferred stub |
-| `plane(...)`, `box(...)`, `sphere(...)` | same | Deferred stubs |
+| `create_canvas(width, height, renderer=WEBGL)` | `createCanvas(..., WEBGL)` | Implemented on the software 3D path |
+| `create_camera()` | `createCamera()` | Implemented |
+| `camera(...)` | `camera(...)` | Implemented |
+| `perspective(...)` | `perspective(...)` | Implemented |
+| `ortho(...)` | `ortho(...)` | Implemented |
+| `orbit_control()` | `orbitControl()` | Implemented on interactive backends with mouse drag + wheel input |
+| `ambient_light(...)` | `ambientLight(...)` | Implemented |
+| `directional_light(...)` | `directionalLight(...)` | Implemented |
+| `point_light(...)` | `pointLight(...)` | Implemented |
+| `normal_material()` | `normalMaterial()` | Implemented |
+| `ambient_material(...)` | `ambientMaterial(...)` | Implemented |
+| `specular_material(...)` | `specularMaterial(...)` | Implemented |
+| `shininess(value)` | `shininess(value)` | Implemented |
+| `texture(image)` | `texture(image)` | Implemented as a software-mapped texture path for UV-capable meshes/primitives |
+| `plane(...)`, `box(...)`, `sphere(...)` | same | Implemented |
 
 ## Model loading and shader adaptation
 
@@ -135,7 +135,8 @@ Compatibility notes:
 
 - Browser URL loading is not supported. Paths should be local filesystem paths or package resources.
 - Asynchronous browser preload semantics are not copied. Existing `preload()` remains synchronous Python code.
-- OBJ material files should be treated as best-effort until a material/texture pipeline exists.
+- OBJ material files are currently ignored. `texture()` currently works with explicit p5-py `Image` values and UV-capable meshes/primitives, but it does not yet load `.mtl` textures automatically.
+- The current software texture path uses per-triangle affine interpolation. It is deterministic and cross-backend, but it is not a native GPU texture pipeline and does not yet provide perspective-correct sampling, mipmaps, or wrap/filter controls.
 - glTF animation and skinning are out of scope for the first model milestone.
 
 ### Shader API
@@ -178,12 +179,12 @@ Compatibility notes:
 
 | Category | Examples | Proposed status |
 |---|---|---|
-| Core p5.js media elements | `create_audio`, `create_video`, `create_capture` | Deferred native APIs, not DOM elements |
-| p5.sound-style file playback | `load_sound`, play/pause/stop, volume/rate/pan | Deferred |
+| File-backed audio elements | `create_audio`, local-file playback lifecycle | Partial via the same backend-neutral object as `load_sound` |
+| p5.sound-style file playback | `load_sound`, play/pause/stop, volume/rate/pan | Partial using `pyglet.media` |
 | p5.sound-style analysis | amplitude, FFT, waveform | Deferred until playback backend and optional numeric dependency are selected |
 | p5.sound-style synthesis | oscillators, envelopes, filters | Deferred and optional |
+| Video playback and capture | `create_video`, `create_capture` | Deferred because of platform, permission, and dependency implications |
 | Microphone capture | microphone input and amplitude/FFT | Deferred because of OS permissions and device handling |
-| Camera capture | webcam frames | Deferred because of OS permissions, device handling, and image/video dependency choices |
 
 The core package should not expose browser media elements. Any future media objects should be Python classes with explicit lifecycle methods and no DOM assumptions.
 
@@ -200,10 +201,10 @@ The core package should not expose browser media elements. Any future media obje
 
 Recommendation:
 
-1. Do not add audio dependencies in epic 100.
-2. If basic playback is prioritized, prototype with `pyglet.media` first because it is already installed for the interactive backend.
+1. Do not add additional audio dependencies for the first playback milestone.
+2. Basic playback now uses `pyglet.media` because it is already installed and can be wrapped behind a backend-neutral `Sound` object.
 3. If analysis/capture becomes a product goal, evaluate an optional `sounddevice`/`soundfile`/NumPy stack or `miniaudio` with explicit extras such as `p5-py[sound]`.
-4. Keep sound objects backend-neutral so headless tests can use fake clocks/sample buffers without opening audio devices.
+4. Keep sound objects backend-neutral so headless tests can use fake players/sample buffers without opening audio devices.
 
 ### Privacy, platform, and dependency implications
 
@@ -216,34 +217,33 @@ Microphone and camera APIs are not simple compatibility aliases for browser APIs
 - Audio capture often needs PortAudio, CoreAudio/WASAPI/ALSA/PulseAudio integration, or a wrapper package.
 - Captured audio/video can contain sensitive user data, so future APIs must make device access explicit and document when data leaves memory or is written to disk.
 
-For now, `load_sound`, `create_audio`, `create_video`, and `create_capture` are deferred stubs with clear package-specific errors.
+`load_sound` and `create_audio` now load local files into a backend-neutral `Sound` object with `play`, `pause`, `stop`, `volume`, `rate`, and `pan` controls. `create_video` and `create_capture` remain deferred with clear package-specific errors.
 
 ## Compatibility matrix updates
 
 `p5_py.api.compatibility.COMPATIBILITY_MATRIX` now classifies the epic 100 areas as:
 
-- `webgl`: `deferred`
-- `webgl_renderer`: `deferred`
-- `3d_primitives`: `deferred`
-- `camera_projection`: `deferred`
-- `lights_materials`: `deferred`
-- `textures`: `deferred`
-- `models`: `deferred`
+- `webgl`: `partial`
+- `webgl_renderer`: `partial`
+- `3d_primitives`: `partial`
+- `camera_projection`: `partial`
+- `lights_materials`: `partial`
+- `textures`: `partial`
+- `models`: `partial`
 - `shaders`: `deferred`
-- `sound`: `deferred`
-- `sound_playback`: `deferred`
+- `sound`: `partial`
+- `sound_playback`: `partial`
 - `sound_analysis`: `deferred`
 - `sound_synthesis`: `deferred`
-- `media_playback`: `deferred`
+- `media_playback`: `partial`
 - `media_capture`: `deferred`
 
-The deferred stubs live in `src/p5_py/api/compatibility.py` and are exported from `src/p5_py/__init__.py` so users receive immediate, intentional errors instead of missing-attribute failures.
+Implemented wrappers live in `src/p5_py/api/advanced.py` and are re-exported through `src/p5_py/api/compatibility.py` and `src/p5_py/__init__.py`. Remaining deferred APIs still raise immediate, intentional package-specific errors instead of failing with missing attributes.
 
 ## Next implementation milestones
 
-1. Add a renderer-selection path for `create_canvas(..., renderer=WEBGL)` without changing existing 2D behavior.
-2. Build a Pyglet-hosted OpenGL triangle/cube spike using the `Renderer3D` protocol values.
-3. Add generated 3D primitives (`plane`, `box`, `sphere`) as mesh builders before file loading.
-4. Implement OBJ loading into `Model3D` with deterministic tests.
-5. Add shader compilation and uniform tests behind a backend capability gate.
-6. Prototype basic sound playback with the existing Pyglet dependency before considering optional sound extras.
+1. Build a true Pyglet-hosted OpenGL renderer behind the existing 3D value objects and capability gates.
+2. Add shader compilation, binding, and uniform support.
+3. Extend model loading beyond OBJ when there is demand, likely starting with optional glTF support.
+4. Add amplitude/FFT analysis and optional synthesis on top of the current sound object design.
+5. Stage `create_video` and `create_capture` with explicit permission and capability behavior.
