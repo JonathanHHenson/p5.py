@@ -16,6 +16,7 @@ from p5_py.core.color import Color
 from p5_py.core.state import StyleState
 from p5_py.core.transform import Matrix2D
 from p5_py.exceptions import ArgumentValidationError
+from p5_py.rust import exclusion_blend_rgb as _exclusion_blend_rgb
 
 _AFFINE_EPSILON = 1e-12
 
@@ -582,10 +583,5 @@ def _angle_steps(count: int):
 
 
 def _exclusion(base: PILImage.Image, overlay: PILImage.Image) -> PILImage.Image:
-    base_bytes = base.tobytes()
-    overlay_bytes = overlay.tobytes()
-    out = bytes(
-        max(0, min(255, b + o - 2 * b * o // 255))
-        for b, o in zip(base_bytes, overlay_bytes, strict=True)
-    )
+    out = _exclusion_blend_rgb(base.tobytes(), overlay.tobytes())
     return PILImage.frombytes("RGB", base.size, out)

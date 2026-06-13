@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import math
 import random as _random
 from collections.abc import Sequence
 from typing import cast
+
+from p5_py.rust import noise_3d as _noise_3d
 
 Number = int | float
 
@@ -61,69 +62,14 @@ def noise_detail(octaves: int, falloff: Number | None = None) -> None:
 
 
 def noise(x: Number = 0, y: Number = 0, z: Number = 0) -> float:
-    total = 0.0
-    amplitude = 1.0
-    max_amplitude = 0.0
-    frequency = 1.0
-    for _ in range(_noise_octaves):
-        total += (
-            _perlin(float(x) * frequency, float(y) * frequency, float(z) * frequency) * amplitude
-        )
-        max_amplitude += amplitude
-        amplitude *= _noise_falloff
-        frequency *= 2.0
-    return total / max_amplitude if max_amplitude else 0.0
-
-
-def _perlin(x: float, y: float, z: float) -> float:
-    x0 = math.floor(x)
-    y0 = math.floor(y)
-    z0 = math.floor(z)
-    xf = x - x0
-    yf = y - y0
-    zf = z - z0
-    u = _fade(xf)
-    v = _fade(yf)
-    w = _fade(zf)
-
-    dots = {}
-    for dx in (0, 1):
-        for dy in (0, 1):
-            for dz in (0, 1):
-                gradient = _gradient(x0 + dx, y0 + dy, z0 + dz)
-                dots[(dx, dy, dz)] = (
-                    gradient[0] * (xf - dx) + gradient[1] * (yf - dy) + gradient[2] * (zf - dz)
-                )
-
-    x00 = _lerp(dots[(0, 0, 0)], dots[(1, 0, 0)], u)
-    x10 = _lerp(dots[(0, 1, 0)], dots[(1, 1, 0)], u)
-    x01 = _lerp(dots[(0, 0, 1)], dots[(1, 0, 1)], u)
-    x11 = _lerp(dots[(0, 1, 1)], dots[(1, 1, 1)], u)
-    y0_value = _lerp(x00, x10, v)
-    y1_value = _lerp(x01, x11, v)
-    return (_lerp(y0_value, y1_value, w) + 1.0) / 2.0
-
-
-def _gradient(x: int, y: int, z: int) -> tuple[float, float, float]:
-    hashed = _hash(x, y, z)
-    theta = (hashed & 0xFFFF) / 0xFFFF * math.tau
-    phi = ((hashed >> 16) & 0xFFFF) / 0xFFFF * math.pi
-    sin_phi = math.sin(phi)
-    return math.cos(theta) * sin_phi, math.sin(theta) * sin_phi, math.cos(phi)
-
-
-def _hash(x: int, y: int, z: int) -> int:
-    value = (_noise_seed & 0xFFFFFFFF) ^ (x * 374761393) ^ (y * 668265263) ^ (z * 2246822519)
-    value = (value ^ (value >> 13)) * 1274126177
-    return (value ^ (value >> 16)) & 0xFFFFFFFF
-
-
-def _fade(t: float) -> float:
-    return t * t * t * (t * (t * 6 - 15) + 10)
-
-
-def _lerp(a: float, b: float, t: float) -> float:
-    return a + (b - a) * t
+    return _noise_3d(
+        float(x),
+        float(y),
+        float(z),
+        seed=_noise_seed,
+        octaves=_noise_octaves,
+        falloff=_noise_falloff,
+    )
 
 
 __all__ = ["random", "random_seed", "random_gaussian", "noise", "noise_seed", "noise_detail"]

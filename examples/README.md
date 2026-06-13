@@ -25,6 +25,7 @@ On Retina/HiDPI displays, the Pyglet backend renders to a higher-resolution back
 - `transforms.py` demonstrates `push`, `pop`, `translate`, `rotate`, `scale`, and angle mode.
 - `custom_shape.py` demonstrates `begin_shape`, `vertex`, `quadratic_vertex`, `bezier`, and shape export.
 - `vector_noise_flow.py` demonstrates `Vector`, `create_vector`, seeded `random`, `noise`, `map_value`, angle mode, and animation.
+- `accelerated_noise_pixels.py` demonstrates the optional Rust-backed `noise()` path plus Pillow `EXCLUSION` blend compositing. It defaults to `headless` so the saved PNG is deterministic whether the Rust extension is installed or the Python fallback is active.
 - `image_text_data.py` demonstrates `Image`, `create_image`, image pixel edits, image filters, text drawing/metrics, `load_json`, `save_json`, `load_strings`, and `save_strings`. This example defaults to `headless` because image/text drawing is currently implemented by the Pillow renderer.
 - `color_style_filters.py` demonstrates RGB/HSB color modes, `lerp_color`, stroke caps/joins, `image_mode`, and image filters. This example defaults to `headless` because image/text drawing is currently implemented by the Pillow renderer.
 - `input_spaceship.py` demonstrates normalized mouse and keyboard callbacks, `key_is_down`, mouse movement deltas, and p5-style input state using the Kenney space shooter assets. It defaults to `pyglet` for interactive input and can export a deterministic headless preview.
