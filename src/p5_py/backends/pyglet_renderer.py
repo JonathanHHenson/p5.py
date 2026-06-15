@@ -223,7 +223,7 @@ class PygletRenderer:
         *,
         source: tuple[int, int, int, int] | None = None,
     ) -> None:
-        if self._use_parity_for_style(style):
+        if self._use_parity_for_image(style, transform):
             self._surface.draw_image(image, dx, dy, dw, dh, style, transform, source=source)
             return
         self._surface_in_sync = False
@@ -359,6 +359,18 @@ class PygletRenderer:
         if self._parity_active:
             return True
         if style.erasing or style.blend_mode != c.BLEND:
+            self._activate_parity_surface()
+            return True
+        return False
+
+    def _use_parity_for_image(self, style: StyleState, transform: Matrix2D) -> bool:
+        if self._parity_active:
+            return True
+        if style.erasing or style.blend_mode != c.BLEND or style.image_sampling != c.LINEAR:
+            self._activate_parity_surface()
+            return True
+        determinant = transform.a * transform.d - transform.b * transform.c
+        if determinant < 0:
             self._activate_parity_surface()
             return True
         return False

@@ -150,6 +150,18 @@ def image_mode(mode: str) -> None:
     require_context().image_mode(mode)
 
 
+def image_sampling(mode: str | None = None) -> str:
+    return require_context().image_sampling(mode)
+
+
+def smooth() -> None:
+    require_context().smooth()
+
+
+def no_smooth() -> None:
+    require_context().no_smooth()
+
+
 def point(x: float, y: float) -> None:
     require_context().point(x, y)
 
@@ -452,6 +464,9 @@ __all__ = [
     "rect_mode",
     "ellipse_mode",
     "image_mode",
+    "image_sampling",
+    "smooth",
+    "no_smooth",
     "point",
     "line",
     "rect",

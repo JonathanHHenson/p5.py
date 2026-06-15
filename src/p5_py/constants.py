@@ -64,6 +64,10 @@ MULTIPLY = "multiply"
 SCREEN = "screen"
 REPLACE = "replace"
 
+# Image sampling
+LINEAR = "linear"
+NEAREST = "nearest"
+
 # Image filters
 THRESHOLD = "threshold"
 GRAY = "gray"
@@ -78,7 +82,8 @@ LEFT_BUTTON = "left"
 CENTER_BUTTON = "center"
 RIGHT_BUTTON = "right"
 
-# Keyboard keys and codes use Unicode code points for printable keys where possible.
+# Keyboard keys and codes follow p5.js-style public keyCode values.
+# Backends should normalize native key symbols to these constants where needed.
 BACKSPACE = 8
 TAB = 9
 ENTER = 13
@@ -147,6 +152,8 @@ __all__ = [
     "MULTIPLY",
     "SCREEN",
     "REPLACE",
+    "LINEAR",
+    "NEAREST",
     "THRESHOLD",
     "GRAY",
     "INVERT",

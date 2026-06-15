@@ -19,6 +19,7 @@ from p5_py.api.global_mode import (
     frame_count,
     frame_rate,
     image_mode,
+    image_sampling,
     is_looping,
     key,
     key_code,
@@ -39,6 +40,7 @@ from p5_py.api.global_mode import (
     no_erase,
     no_fill,
     no_loop,
+    no_smooth,
     no_stroke,
     pixel_array,
     pixel_density,
@@ -81,6 +83,7 @@ strokeJoin = stroke_join
 ellipseMode = ellipse_mode
 rectMode = rect_mode
 imageMode = image_mode
+imageSampling = image_sampling
 beginShape = begin_shape
 endShape = end_shape
 bezierVertex = bezier_vertex
@@ -96,6 +99,7 @@ deltaTime = delta_time
 pixelDensity = pixel_density
 displayDensity = display_density
 noLoop = no_loop
+noSmooth = no_smooth
 isLooping = is_looping
 keyIsDown = key_is_down
 mouseX = mouse_x
@@ -145,6 +149,7 @@ __all__ = [
     "ellipseMode",
     "rectMode",
     "imageMode",
+    "imageSampling",
     "beginShape",
     "endShape",
     "bezierVertex",
@@ -160,6 +165,7 @@ __all__ = [
     "pixelDensity",
     "displayDensity",
     "noLoop",
+    "noSmooth",
     "isLooping",
     "keyIsDown",
     "mouseX",

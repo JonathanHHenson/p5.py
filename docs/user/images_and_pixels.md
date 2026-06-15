@@ -10,8 +10,13 @@ Useful image APIs include:
 - `create_image()`
 - `image()`
 - `image_mode()`
+- `image_sampling()`
+- `smooth()`
+- `no_smooth()`
 
 The `Image` type also supports pixel-oriented operations such as `get()`, `set()`, `copy()`, `resize()`, `mask()`, and common filters.
+
+`image_sampling()` controls how `image()` scales textures. Use `p5.NEAREST` or `no_smooth()` for crisp pixel-art scaling, and `p5.LINEAR` or `smooth()` for interpolated scaling.
 
 ## Pixels
 
@@ -38,6 +43,7 @@ For deterministic tests and export work:
 ## Examples
 
 - `examples/image_text_data.py`
+- `examples/image_flip_sampling.py`
 - `examples/color_style_filters.py`
 - `examples/pixels_blend_export.py`
 - `examples/accelerated_noise_pixels.py`

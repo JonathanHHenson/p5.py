@@ -229,6 +229,32 @@ class PygletBackend:
                 return c.RIGHT_BUTTON
         return str(button)
 
+    def _normalize_key_code(self, symbol: int | None) -> int | None:
+        if symbol is None:
+            return None
+        pyglet = self._load_pyglet()
+        key = getattr(getattr(pyglet, "window", None), "key", None)
+        if key is None:
+            return symbol
+        normalized_symbols = {
+            getattr(key, "BACKSPACE", object()): c.BACKSPACE,
+            getattr(key, "TAB", object()): c.TAB,
+            getattr(key, "ENTER", object()): c.ENTER,
+            getattr(key, "RETURN", object()): c.RETURN,
+            getattr(key, "ESCAPE", object()): c.ESCAPE,
+            getattr(key, "LSHIFT", object()): c.SHIFT,
+            getattr(key, "RSHIFT", object()): c.SHIFT,
+            getattr(key, "LCTRL", object()): c.CONTROL,
+            getattr(key, "RCTRL", object()): c.CONTROL,
+            getattr(key, "LALT", object()): c.ALT,
+            getattr(key, "RALT", object()): c.ALT,
+            getattr(key, "UP", object()): c.UP_ARROW,
+            getattr(key, "DOWN", object()): c.DOWN_ARROW,
+            getattr(key, "LEFT", object()): c.LEFT_ARROW,
+            getattr(key, "RIGHT", object()): c.RIGHT_ARROW,
+        }
+        return normalized_symbols.get(symbol, symbol)
+
     def _logical_pointer_position(self, x: float, y: float) -> tuple[float, float]:
         density = self.renderer.pixel_density
         return float(x) / density, self.renderer.height - float(y) / density
@@ -342,7 +368,7 @@ class PygletBackend:
         def on_key_press(symbol, modifiers):
             event = KeyboardEvent(
                 key=chr(symbol) if 0 <= symbol <= 0x10FFFF else None,
-                key_code=symbol,
+                key_code=self._normalize_key_code(symbol),
                 modifiers=modifiers,
                 type="key_pressed",
             )
@@ -352,7 +378,7 @@ class PygletBackend:
         def on_key_release(symbol, modifiers):
             event = KeyboardEvent(
                 key=chr(symbol) if 0 <= symbol <= 0x10FFFF else None,
-                key_code=symbol,
+                key_code=self._normalize_key_code(symbol),
                 modifiers=modifiers,
                 type="key_released",
             )

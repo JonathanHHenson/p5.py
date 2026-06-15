@@ -1,3 +1,4 @@
+import p5_py as p5
 from p5_py.backends.pyglet import PygletBackend
 from p5_py.backends.pyglet_renderer import PygletRenderer
 
@@ -104,6 +105,25 @@ class FakeModernOnlyGL:
     glTexImage2D = object()
 
 
+class FakeKeyModule:
+    BACKSPACE = 65288
+    TAB = 65289
+    ENTER = 65293
+    RETURN = 65293
+    ESCAPE = 65307
+    LSHIFT = 65505
+    RSHIFT = 65506
+    LCTRL = 65507
+    RCTRL = 65508
+    LALT = 65513
+    RALT = 65514
+    UP = 65362
+    DOWN = 65364
+    LEFT = 65361
+    RIGHT = 65363
+    A = 97
+
+
 class FakePygletModule:
     graphics = FakeGraphics()
     gl = FakeGL()
@@ -111,6 +131,8 @@ class FakePygletModule:
     last_window_kwargs: dict | None = None
 
     class window:
+        key = FakeKeyModule
+
         @staticmethod
         def Window(width, height, caption, vsync=False, **kwargs):
             FakePygletModule.last_window = FakePixelRatioWindow(vsync=vsync)
@@ -123,6 +145,8 @@ class FakeFramebufferPygletModule:
     gl = FakeGL()
 
     class window:
+        key = FakeKeyModule
+
         @staticmethod
         def Window(width, height, caption, vsync=False, **kwargs):
             return FakeFramebufferWindow()
@@ -135,6 +159,8 @@ class FakeModernOnlyPygletModule:
     last_window_kwargs: dict | None = None
 
     class window:
+        key = FakeKeyModule
+
         @staticmethod
         def Window(width, height, caption, vsync=False, **kwargs):
             FakeModernOnlyPygletModule.last_window = FakePixelRatioWindow(vsync=vsync)
@@ -219,6 +245,27 @@ def test_pyglet_pointer_coordinates_are_scaled_to_logical_canvas_space():
 
     assert backend._logical_pointer_position(320, 200) == (160, 320)
     assert backend._logical_pointer_delta(12, -8) == (6, 4)
+
+
+def test_pyglet_normalizes_special_key_codes_to_public_constants():
+    backend = PygletBackend()
+    backend._pyglet = FakePygletModule()
+
+    assert backend._normalize_key_code(FakeKeyModule.LEFT) == p5.LEFT_ARROW
+    assert backend._normalize_key_code(FakeKeyModule.RIGHT) == p5.RIGHT_ARROW
+    assert backend._normalize_key_code(FakeKeyModule.UP) == p5.UP_ARROW
+    assert backend._normalize_key_code(FakeKeyModule.DOWN) == p5.DOWN_ARROW
+    assert backend._normalize_key_code(FakeKeyModule.BACKSPACE) == p5.BACKSPACE
+    assert backend._normalize_key_code(FakeKeyModule.TAB) == p5.TAB
+    assert backend._normalize_key_code(FakeKeyModule.ENTER) == p5.ENTER
+    assert backend._normalize_key_code(FakeKeyModule.ESCAPE) == p5.ESCAPE
+    assert backend._normalize_key_code(FakeKeyModule.LSHIFT) == p5.SHIFT
+    assert backend._normalize_key_code(FakeKeyModule.RSHIFT) == p5.SHIFT
+    assert backend._normalize_key_code(FakeKeyModule.LCTRL) == p5.CONTROL
+    assert backend._normalize_key_code(FakeKeyModule.RCTRL) == p5.CONTROL
+    assert backend._normalize_key_code(FakeKeyModule.LALT) == p5.ALT
+    assert backend._normalize_key_code(FakeKeyModule.RALT) == p5.ALT
+    assert backend._normalize_key_code(FakeKeyModule.A) == ord("a")
 
 
 def test_next_frame_delay_compensates_for_late_callback():

@@ -250,6 +250,19 @@ class SketchContext:
             raise ArgumentValidationError(f"Unsupported image mode {mode!r}.")
         self.state.style.image_mode = mode
 
+    def image_sampling(self, mode: str | None = None) -> str:
+        if mode is not None:
+            if mode not in {c.LINEAR, c.NEAREST}:
+                raise ArgumentValidationError(f"Unsupported image sampling mode {mode!r}.")
+            self.state.style.image_sampling = mode
+        return self.state.style.image_sampling
+
+    def smooth(self) -> None:
+        self.state.style.image_sampling = c.LINEAR
+
+    def no_smooth(self) -> None:
+        self.state.style.image_sampling = c.NEAREST
+
     def point(self, x: float, y: float) -> None:
         self.renderer.point(float(x), float(y), self.state.style, self.state.transform.matrix)
 

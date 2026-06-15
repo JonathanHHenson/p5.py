@@ -245,7 +245,7 @@ class PillowRenderer:
         ):
             return
         if abs(image_to_canvas.b) < _AFFINE_EPSILON and abs(image_to_canvas.c) < _AFFINE_EPSILON:
-            cache_key = (id(image), image.version, source)
+            cache_key = (id(image), image.version, source, style.image_sampling)
             self._draw_axis_aligned_image(source_image, image_to_canvas, style, cache_key)
             return
 
@@ -262,7 +262,7 @@ class PillowRenderer:
                     canvas_to_image.d,
                     canvas_to_image.f,
                 ),
-                resample=PILImage.Resampling.BICUBIC,
+                resample=self._image_resampling(style),
                 fillcolor=(0, 0, 0, 0),
             )
             self.image.alpha_composite(transformed)
@@ -425,23 +425,42 @@ class PillowRenderer:
             image = image.transpose(PILImage.Transpose.FLIP_LEFT_RIGHT)
         if flip_y:
             image = image.transpose(PILImage.Transpose.FLIP_TOP_BOTTOM)
-        resized = self._cached_resized_image(image, (*cache_key, dw, dh, flip_x, flip_y), dw, dh)
+        resized = self._cached_resized_image(
+            image,
+            (*cache_key, dw, dh, flip_x, flip_y),
+            dw,
+            dh,
+            style.image_sampling,
+        )
         if style.erasing:
             self._erase_region(resized, dx, dy)
         else:
             self._composite_region(resized, dx, dy, style.blend_mode)
 
     def _cached_resized_image(
-        self, image: PILImage.Image, cache_key: tuple[object, ...], width: int, height: int
+        self,
+        image: PILImage.Image,
+        cache_key: tuple[object, ...],
+        width: int,
+        height: int,
+        sampling_mode: str,
     ) -> PILImage.Image:
         cached = self._resized_image_cache.get(cache_key)
         if cached is not None:
             return cached
         if len(self._resized_image_cache) > 128:
             self._resized_image_cache.clear()
-        resized = image.resize((width, height), PILImage.Resampling.BICUBIC)
+        resized = image.resize((width, height), self._image_resampling_for_mode(sampling_mode))
         self._resized_image_cache[cache_key] = resized
         return resized
+
+    def _image_resampling(self, style: StyleState):
+        return self._image_resampling_for_mode(style.image_sampling)
+
+    def _image_resampling_for_mode(self, mode: str):
+        if mode == c.NEAREST:
+            return PILImage.Resampling.NEAREST
+        return PILImage.Resampling.BICUBIC
 
     def blend_region(
         self,

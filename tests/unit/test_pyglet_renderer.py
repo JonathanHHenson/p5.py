@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 
 import pytest
 from PIL import Image as PILImage
@@ -288,6 +289,43 @@ def test_native_renderer_draws_images_with_texture_upload_and_source_crop():
     assert (sprite.x, sprite.y) == (2.0, 16.0)
     assert sprite.scale_x == 3.0
     assert sprite.scale_y == 4.0
+
+
+def test_native_renderer_uses_parity_surface_for_reflected_image_transforms():
+    reset_shape_calls()
+    renderer = PygletRenderer(10, 10, pyglet=FakePyglet())
+    image = Image(PILImage.new("RGBA", (2, 3), (0, 0, 0, 0)))
+    image.set(0, 0, Color(255, 0, 0, 255))
+    image.set(0, 2, Color(0, 255, 0, 255))
+
+    transform = Matrix2D.translation(5, 5).multiply(Matrix2D.scaling(-1, 1))
+    renderer.draw_image(image, -1, -1.5, 2, 3, StyleState(image_mode="corner"), transform)
+
+    assert renderer._parity_active is True
+    assert FakeSprite.calls == []
+    pixels = renderer.load_pixels()
+
+    def pixel_at(x: int, y: int) -> tuple[int, int, int, int]:
+        offset = (y * renderer.physical_width + x) * 4
+        return cast(tuple[int, int, int, int], tuple(pixels[offset : offset + 4]))
+
+    assert pixel_at(5, 4) == (255, 0, 0, 255)
+    assert pixel_at(5, 6) == (0, 255, 0, 255)
+
+
+def test_native_renderer_uses_parity_surface_for_nearest_image_sampling():
+    reset_shape_calls()
+    renderer = PygletRenderer(10, 10, pyglet=FakePyglet())
+    image = Image(PILImage.new("RGBA", (1, 1), (255, 0, 0, 255)))
+
+    style = StyleState()
+    style.image_sampling = "nearest"
+
+    renderer.draw_image(image, 1, 2, 3, 4, style, Matrix2D.identity())
+
+    assert renderer._parity_active is True
+    assert FakeSprite.calls == []
+    assert FakeImageData.calls == []
 
 
 def test_native_renderer_reuploads_current_image_data_each_draw():
