@@ -21,8 +21,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import p5_py as p5
-from p5_py.rust import health_check, is_acceleration_available
+import p5
+from p5.rust import health_check, is_acceleration_available
 
 OUTPUT = Path("examples/output/accelerated_noise_pixels.png")
 EXPORT_CANVAS = False

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 
-import p5_py as p5
+import p5
 
 x = 80.0
 y = 80.0

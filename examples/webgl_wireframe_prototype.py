@@ -16,9 +16,9 @@ import argparse
 import math
 from pathlib import Path
 
-import p5_py as p5
-from p5_py.drawing.prototype3d import cube_model, wireframe_segments
-from p5_py.drawing.renderer3d import Camera3D, OrthographicProjection, PerspectiveProjection, Vec3
+import p5
+from p5.drawing.prototype3d import cube_model, wireframe_segments
+from p5.drawing.renderer3d import Camera3D, OrthographicProjection, PerspectiveProjection, Vec3
 
 OUTPUT = Path("examples/output/webgl_wireframe_prototype.png")
 EXPORT_CANVAS = False

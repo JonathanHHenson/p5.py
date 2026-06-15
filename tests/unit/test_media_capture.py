@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-import p5_py as p5
-from p5_py import BackendCapabilityError, UnsupportedFeatureError
-from p5_py.assets import media as media_module
-from p5_py.assets.image import create_image
+import p5
+from p5 import BackendCapabilityError, UnsupportedFeatureError
+from p5.assets import media as media_module
+from p5.assets.image import create_image
 
 
 class _FakeVideoCapture:

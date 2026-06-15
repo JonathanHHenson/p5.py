@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import p5_py as p5
+import p5
 
 
 def test_basic_primitives_render_non_empty_canvas(tmp_path: Path):

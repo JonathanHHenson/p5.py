@@ -1,6 +1,6 @@
-import p5_py as p5
-from p5_py.backends.pyglet import PygletBackend
-from p5_py.backends.pyglet_renderer import PygletRenderer
+import p5
+from p5.backends.pyglet import PygletBackend
+from p5.backends.pyglet_renderer import PygletRenderer
 
 
 class FakeBatch:

@@ -44,7 +44,7 @@ displayDensity()
 ## Example
 
 ```python
-from p5_py import *
+from p5 import *
 
 
 def setup():

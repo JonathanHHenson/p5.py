@@ -13,9 +13,9 @@ import argparse
 from contextlib import suppress
 from pathlib import Path
 
-import p5_py as p5
-from p5_py.assets.sound import Sound
-from p5_py.exceptions import BackendCapabilityError
+import p5
+from p5.assets.sound import Sound
+from p5.exceptions import BackendCapabilityError
 
 ASSET_DIR = Path("examples/assets")
 OUTPUT = Path("examples/output/audio_controls.png")

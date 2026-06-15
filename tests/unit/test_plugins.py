@@ -1,9 +1,9 @@
 import pytest
 
-import p5_py as p5
-from p5_py.events.input_state import KeyboardEvent, MouseEvent
-from p5_py.plugins import Plugin, clear_plugins, install_plugin, list_plugins, uninstall_plugin
-from p5_py.sketch import Sketch
+import p5
+from p5.events.input_state import KeyboardEvent, MouseEvent
+from p5.plugins import Plugin, clear_plugins, install_plugin, list_plugins, uninstall_plugin
+from p5.sketch import Sketch
 
 
 @pytest.fixture(autouse=True)

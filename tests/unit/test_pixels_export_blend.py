@@ -1,10 +1,10 @@
 import pytest
 from PIL import Image as PILImage
 
-import p5_py as p5
-from p5_py.backends.pillow import PillowRenderer
-from p5_py.core.color import Color
-from p5_py.exceptions import ArgumentValidationError
+import p5
+from p5.backends.pillow import PillowRenderer
+from p5.core.color import Color
+from p5.exceptions import ArgumentValidationError
 
 
 def test_pixels_round_trip_and_pixel_array_include_physical_density():

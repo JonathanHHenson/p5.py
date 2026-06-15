@@ -1,5 +1,5 @@
-from p5_py.backends import available_backends, create_backend, register_backend
-from p5_py.backends.headless import HeadlessBackend
+from p5.backends import available_backends, create_backend, register_backend
+from p5.backends.headless import HeadlessBackend
 
 
 def test_default_backends_are_registered():

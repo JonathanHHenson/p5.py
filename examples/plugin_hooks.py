@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-import p5_py as p5
-from p5_py.plugins import Plugin, install_plugin, uninstall_plugin
+import p5
+from p5.plugins import Plugin, install_plugin, uninstall_plugin
 
 
 class GridPlugin(Plugin):

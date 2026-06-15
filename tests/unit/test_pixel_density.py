@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-import p5_py as p5
-from p5_py.backends.pillow import PillowRenderer
-from p5_py.exceptions import ArgumentValidationError
+import p5
+from p5.backends.pillow import PillowRenderer
+from p5.exceptions import ArgumentValidationError
 
 
 def test_pillow_renderer_tracks_logical_and_physical_sizes():
@@ -19,9 +19,9 @@ def test_pillow_renderer_tracks_logical_and_physical_sizes():
 
 def test_pillow_renderer_scales_logical_coordinates():
     renderer = PillowRenderer(20, 20, pixel_density=2)
-    from p5_py.core.color import Color
-    from p5_py.core.state import StyleState
-    from p5_py.core.transform import Matrix2D
+    from p5.core.color import Color
+    from p5.core.state import StyleState
+    from p5.core.transform import Matrix2D
 
     style = StyleState(fill_color=Color(255, 0, 0), stroke_color=None)
     renderer.polygon([(1, 1), (4, 1), (4, 4), (1, 4)], style, Matrix2D.identity())

@@ -6,7 +6,7 @@ I want a clean Python package structure,
 So that future p5-py features have an organized foundation.
 '''
 acceptance_criteria = '''
-A `src/p5_py` package exists with organized modules for runtime, API, constants, exceptions, core systems, drawing, backends, events, assets, pixels, plugins, Rust integration, and testing helpers. The package imports without side effects and exposes an intentional public surface.
+A `src/p5` package exists with organized modules for runtime, API, constants, exceptions, core systems, drawing, backends, events, assets, pixels, plugins, Rust integration, and testing helpers. The package imports without side effects and exposes an intentional public surface.
 '''
 priotity = 'high'
 status = 'DONE'
@@ -15,7 +15,7 @@ status = 'DONE'
 order = 1
 status = 'DONE'
 description = '''
-Create the `src/p5_py` layout and move away from a single `main.py` entry point.
+Create the `src/p5` layout and move away from a single `main.py` entry point.
 '''
 
 [my_pbi.task_2]

@@ -1,7 +1,7 @@
 import pytest
 
-import p5_py as p5
-from p5_py.exceptions import ArgumentValidationError
+import p5
+from p5.exceptions import ArgumentValidationError
 
 
 def test_global_mode_explicit_callbacks():

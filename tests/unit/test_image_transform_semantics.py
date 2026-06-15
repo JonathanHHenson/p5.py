@@ -2,7 +2,7 @@ import math
 
 from PIL import Image as PILImage
 
-import p5_py as p5
+import p5
 
 
 def _alpha_bbox(

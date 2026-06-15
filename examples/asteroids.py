@@ -20,8 +20,8 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
-import p5_py as p5
-from p5_py.events.input_state import KeyboardEvent, MouseEvent
+import p5
+from p5.events.input_state import KeyboardEvent, MouseEvent
 
 ASSET_DIR = Path("examples/assets")
 OUTPUT = Path("examples/output/input_spaceship.png")

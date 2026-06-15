@@ -4,12 +4,12 @@ from typing import cast
 import pytest
 from PIL import Image as PILImage
 
-from p5_py.assets.image import Image
-from p5_py.backends.pyglet import PygletBackend
-from p5_py.backends.pyglet_renderer import PygletRenderer
-from p5_py.core.color import Color
-from p5_py.core.state import StyleState
-from p5_py.core.transform import Matrix2D
+from p5.assets.image import Image
+from p5.backends.pyglet import PygletBackend
+from p5.backends.pyglet_renderer import PygletRenderer
+from p5.core.color import Color
+from p5.core.state import StyleState
+from p5.core.transform import Matrix2D
 
 
 class FakeBatch:

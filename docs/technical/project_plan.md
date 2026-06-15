@@ -81,7 +81,7 @@ Unsupported APIs should fail with clear package-specific errors rather than fail
 ## 4. Proposed package architecture
 
 ```text
-p5_py/
+p5/
   __init__.py
   app.py
   sketch.py
@@ -181,7 +181,7 @@ The 040-060 backlog epics are implemented for the deterministic headless/Pillow 
 - Color, style, constants, and transform APIs include RGB/HSB/HSL color modes, style stacks, stroke/fill mutation, affine transforms, angle modes, and p5-style aliases.
 - Math, random, noise, and vector APIs include p5-style helpers, seedable random/gaussian values, deterministic Perlin-style noise, and mutable `Vector` objects with Python operators.
 - Assets include local image loading, `Image` manipulation (`get`, `set`, `copy`, `resize`, `mask`, and common filters), image drawing with `image_mode`, lightweight text/JSON helpers, font loading, text drawing, alignment, leading, and metrics.
-- Optional Rust acceleration is scaffolded through `crates/p5_accel` and `p5_py.rust`, with Python fallbacks for `noise_3d` and packed RGB `EXCLUSION` blending. See `docs/technical/rust_acceleration.md` for build and benchmark commands.
+- Optional Rust acceleration is scaffolded through `crates/p5_accel` and `p5.rust`, with Python fallbacks for `noise_3d` and packed RGB `EXCLUSION` blending. See `docs/technical/rust_acceleration.md` for build and benchmark commands.
 
 The native Pyglet renderer supports image drawing, transformed image pivots, text drawing/metrics, `load_pixels`, `update_pixels`, `blend_mode`, `blend`, `erase`, and `save_canvas` export at physical HiDPI resolution. Normal frames use native Pyglet drawing; pixel/compositing workflows lazily switch to a deterministic parity surface. The headless/Pillow backend remains the simplest deterministic golden-test and non-interactive export path.
 
@@ -196,7 +196,7 @@ Advanced 3D, model/shader, sound, and media work is documented in `docs/technica
 Function-style sketching:
 
 ```python
-from p5_py import *
+from p5 import *
 
 def setup():
     create_canvas(600, 400)
@@ -212,7 +212,7 @@ run()
 Object-oriented sketching:
 
 ```python
-from p5_py import Sketch
+from p5 import Sketch
 
 class MySketch(Sketch):
     def setup(self):
@@ -342,7 +342,7 @@ Good candidates:
 Recommended build pipeline:
 
 - Use `maturin` with `pyo3` when the first Rust extension is introduced.
-- Keep Rust module name under `p5_py.rust._accelerated`.
+- Keep Rust module name under `p5.rust._accelerated`.
 - Expose narrow, typed functions rather than large mutable objects.
 - Add parity tests comparing Python and Rust results.
 - Keep the package installable in pure Python mode if Rust build tooling is unavailable.

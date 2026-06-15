@@ -13,7 +13,7 @@ import argparse
 import math
 from pathlib import Path
 
-import p5_py as p5
+import p5
 
 OUTPUT = Path("examples/output/webgl_texture_orbit.png")
 BACKEND = p5.HEADLESS

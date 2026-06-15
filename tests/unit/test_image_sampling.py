@@ -2,7 +2,7 @@ from typing import cast
 
 from PIL import Image as PILImage
 
-import p5_py as p5
+import p5
 
 
 def _rgba_at(pixels: list[int], width: int, x: int, y: int) -> tuple[int, int, int, int]:

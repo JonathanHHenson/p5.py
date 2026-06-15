@@ -1,4 +1,4 @@
-import p5_py as p5
+import p5
 
 
 def _render_pixels(backend: str) -> list[int]:

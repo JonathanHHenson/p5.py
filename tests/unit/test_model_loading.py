@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import p5_py as p5
+import p5
 
 
 def test_load_model_supports_local_obj_with_negative_indices(tmp_path: Path):
@@ -27,7 +27,7 @@ def test_load_model_supports_local_obj_with_negative_indices(tmp_path: Path):
 
 
 def test_load_model_supports_package_resources_and_normalize():
-    model = p5.load_model("triangle.obj", normalize=True, package="p5_py.testing.resources")
+    model = p5.load_model("triangle.obj", normalize=True, package="p5.testing.resources")
 
     mesh = model.meshes[0]
     xs = [vertex.x for vertex in mesh.vertices]

@@ -14,9 +14,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import p5_py as p5
-from p5_py.assets.media import Capture
-from p5_py.exceptions import BackendCapabilityError
+import p5
+from p5.assets.media import Capture
+from p5.exceptions import BackendCapabilityError
 
 OUTPUT = Path("examples/output/video_capture.png")
 CAMERA: Capture | None = None

@@ -8,7 +8,7 @@ fallbacks with parity tests.
 
 The first accelerated targets are narrow, pure computational paths:
 
-- `noise_3d`: the Perlin-style noise core used by `p5_py.core.random.noise()`.
+- `noise_3d`: the Perlin-style noise core used by `p5.core.random.noise()`.
 - `exclusion_blend_rgb`: the packed RGB byte loop used by the Pillow renderer's
   `EXCLUSION` blend mode.
 
@@ -24,14 +24,14 @@ crates/
   p5_accel/
     Cargo.toml
     src/lib.rs
-src/p5_py/rust/
+src/p5/rust/
   __init__.py          # optional import, wrappers, Python fallbacks
   _accelerated.pyi     # type stub for the compiled extension
   benchmarks.py        # local timing helpers
 ```
 
-The compiled extension module is named `p5_py.rust._accelerated`. Importing
-`p5_py.rust` never requires the extension to exist.
+The compiled extension module is named `p5.rust._accelerated`. Importing
+`p5.rust` never requires the extension to exist.
 
 ## Local build
 
@@ -49,12 +49,12 @@ uvx maturin develop --release
 
 The `pyproject.toml` `[tool.maturin]` settings point maturin at
 `crates/p5_accel/Cargo.toml` and install the extension as
-`p5_py.rust._accelerated` under the `src` Python source tree.
+`p5.rust._accelerated` under the `src` Python source tree.
 
 You can confirm which implementation is active with:
 
 ```sh
-uv run python -c "import p5_py.rust as r; print(r.health_check())"
+uv run python -c "import p5.rust as r; print(r.health_check())"
 ```
 
 Expected values are:
@@ -99,7 +99,7 @@ paths and strategy selection.
 Run small local timing helpers with:
 
 ```sh
-uv run python -m p5_py.rust.benchmarks
+uv run python -m p5.rust.benchmarks
 ```
 
 The benchmark output reports both the wrapper path and the explicit Python

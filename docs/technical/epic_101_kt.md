@@ -2,7 +2,7 @@
 
 ## What landed
 
-This pass finishes epic 101 as the software WEBGL/media milestone in `p5_py`:
+This pass finishes epic 101 as the software WEBGL/media milestone in `p5`:
 
 - `create_canvas(..., renderer=WEBGL)` now activates a software-projected 3D path on the current backends.
 - Public 3D APIs now work for the implemented slice:
@@ -28,7 +28,7 @@ This is **not** a native OpenGL renderer yet.
 
 The current WEBGL-like path is implemented in Python with projection/shading helpers in:
 
-- `src/p5_py/drawing/software3d.py`
+- `src/p5/drawing/software3d.py`
 
 `SketchContext` projects/shades faces and then draws them through the existing 2D renderer. Flat-shaded faces still lower to renderer polygons, while textured faces are rasterized on a deterministic software path and composited back through the existing image APIs. This keeps the milestone backend-agnostic, deterministic, and headless-testable.
 
@@ -64,22 +64,22 @@ Still deferred:
 ## Important files changed
 
 ### New modules
-- `src/p5_py/api/advanced.py`
-- `src/p5_py/assets/model.py`
-- `src/p5_py/assets/sound.py`
-- `src/p5_py/drawing/software3d.py`
-- `src/p5_py/testing/resources/triangle.obj`
+- `src/p5/api/advanced.py`
+- `src/p5/assets/model.py`
+- `src/p5/assets/sound.py`
+- `src/p5/drawing/software3d.py`
+- `src/p5/testing/resources/triangle.obj`
 - `docs/technical/epic_101_kt.md`
 
 ### Core wiring
-- `src/p5_py/context.py`
-- `src/p5_py/sketch.py`
-- `src/p5_py/api/global_mode.py`
-- `src/p5_py/api/compatibility.py`
-- `src/p5_py/core/state.py`
-- `src/p5_py/backends/headless.py`
-- `src/p5_py/backends/pyglet.py`
-- `src/p5_py/__init__.py`
+- `src/p5/context.py`
+- `src/p5/sketch.py`
+- `src/p5/api/global_mode.py`
+- `src/p5/api/compatibility.py`
+- `src/p5/core/state.py`
+- `src/p5/backends/headless.py`
+- `src/p5/backends/pyglet.py`
+- `src/p5/__init__.py`
 
 ### Tests/examples/docs/backlog
 - `tests/integration/test_webgl_3d.py`

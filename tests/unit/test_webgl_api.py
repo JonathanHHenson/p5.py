@@ -4,15 +4,15 @@ from typing import Any, cast
 
 import pytest
 
-import p5_py as p5
-from p5_py.backends.base import BackendCapabilities
-from p5_py.backends.headless import HeadlessBackend
-from p5_py.context import SketchContext
-from p5_py.drawing.renderer3d import Model3D, Shader3D
-from p5_py.events.input_state import MouseEvent
-from p5_py.exceptions import ArgumentValidationError, BackendCapabilityError, ShaderUniformError
-from p5_py.plugins.registry import GLOBAL_PLUGIN_REGISTRY
-from p5_py.sketch import Sketch
+import p5
+from p5.backends.base import BackendCapabilities
+from p5.backends.headless import HeadlessBackend
+from p5.context import SketchContext
+from p5.drawing.renderer3d import Model3D, Shader3D
+from p5.events.input_state import MouseEvent
+from p5.exceptions import ArgumentValidationError, BackendCapabilityError, ShaderUniformError
+from p5.plugins.registry import GLOBAL_PLUGIN_REGISTRY
+from p5.sketch import Sketch
 
 
 class _WebGLSketch(Sketch):
@@ -183,7 +183,7 @@ class FakeUpgradeablePygletBackend(FakePyglet3DBackend):
 def test_texture_requires_p5_image_and_material_apis_clear_bound_texture():
     context = make_context()
 
-    with pytest.raises(ArgumentValidationError, match="p5_py Image"):
+    with pytest.raises(ArgumentValidationError, match="p5 Image"):
         context.texture(cast(Any, object()))
 
     checker = p5.create_image(2, 2)

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import p5_py as p5
+import p5
 
 
 def test_math_helpers_and_angle_mode():

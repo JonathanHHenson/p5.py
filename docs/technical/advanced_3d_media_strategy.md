@@ -37,7 +37,7 @@ A true native Pyglet/OpenGL renderer is still a planned follow-on milestone. Mod
 
 ### Protocol shape
 
-`src/p5_py/drawing/renderer3d.py` defines backend-agnostic value objects and an optional `Renderer3D` protocol. It includes:
+`src/p5/drawing/renderer3d.py` defines backend-agnostic value objects and an optional `Renderer3D` protocol. It includes:
 
 - `Camera3D` and `Projection3D` variants for camera/projection control.
 - `Light3D`, `Material3D`, and `Texture3D` for lights, materials, and texture binding.
@@ -45,11 +45,11 @@ A true native Pyglet/OpenGL renderer is still a planned follow-on milestone. Mod
 - `Shader3D` and uniform types for Python-native shader loading.
 - `Renderer3D` methods for camera, projection, lights, material, texture, shader, model, mesh, and primitive drawing.
 
-The existing 2D `Renderer` protocol remains unchanged. The current milestone keeps 3D projection logic in `SketchContext` plus `src/p5_py/drawing/software3d.py`, which means existing headless and Pyglet backends can report `three_d=True` without introducing a dedicated GPU renderer yet. The `Renderer3D` protocol remains the target contract for a later native backend.
+The existing 2D `Renderer` protocol remains unchanged. The current milestone keeps 3D projection logic in `SketchContext` plus `src/p5/drawing/software3d.py`, which means existing headless and Pyglet backends can report `three_d=True` without introducing a dedicated GPU renderer yet. The `Renderer3D` protocol remains the target contract for a later native backend.
 
 ### Minimal prototype
 
-`src/p5_py/drawing/prototype3d.py` remains the dependency-free math prototype that validated the hard-to-change semantics first. The public WEBGL-style APIs now build on that work through `src/p5_py/drawing/software3d.py`, which adds generated primitives, face projection, simple lighting/material shading, and `model()` drawing on the existing renderers.
+`src/p5/drawing/prototype3d.py` remains the dependency-free math prototype that validated the hard-to-change semantics first. The public WEBGL-style APIs now build on that work through `src/p5/drawing/software3d.py`, which adds generated primitives, face projection, simple lighting/material shading, and `model()` drawing on the existing renderers.
 
 - cube mesh generation with indexed faces,
 - `Camera3D` eye/target/up handling,
@@ -61,8 +61,8 @@ The existing 2D `Renderer` protocol remains unchanged. The current milestone kee
 Example use:
 
 ```python
-from p5_py.drawing.prototype3d import cube_model, wireframe_segments
-from p5_py.drawing.renderer3d import Camera3D, PerspectiveProjection, Vec3
+from p5.drawing.prototype3d import cube_model, wireframe_segments
+from p5.drawing.renderer3d import Camera3D, PerspectiveProjection, Vec3
 
 model = cube_model(100)
 camera = Camera3D(eye=Vec3(0, 0, 300), target=Vec3(0, 0, 0))
@@ -111,7 +111,7 @@ Recommended staged support:
 3. **glTF 2.0** later for modern models with scene hierarchy, PBR materials, textures, and animation. This should probably use an optional dependency after the renderer has real texture/material support.
 4. **STL/PLY** only if there is user demand. They are useful for geometry but do not map as well to p5.js model/shader examples.
 
-No model loader dependency is added in epic 100. When loading is implemented, keep loaders under `src/p5_py/assets/` and return backend-neutral `Model3D` values.
+No model loader dependency is added in epic 100. When loading is implemented, keep loaders under `src/p5/assets/` and return backend-neutral `Model3D` values.
 
 ### Proposed model API
 
@@ -125,7 +125,7 @@ model(shape)
 Pythonic additions may include:
 
 ```python
-from p5_py.drawing.renderer3d import Mesh3D, Model3D
+from p5.drawing.renderer3d import Mesh3D, Model3D
 
 mesh = Mesh3D(vertices=(...), faces=(...))
 model = Model3D(meshes=(mesh,))
@@ -155,7 +155,7 @@ reset_shader()
 Pythonic alternatives can use constructors/value objects:
 
 ```python
-from p5_py.drawing.renderer3d import Shader3D
+from p5.drawing.renderer3d import Shader3D
 
 shader_program = Shader3D(
     vertex_source=vertex_source,
@@ -248,7 +248,7 @@ Predictable failure behavior is intentional:
 
 ## Compatibility matrix updates
 
-`p5_py.api.compatibility.COMPATIBILITY_MATRIX` now classifies the epic 100 areas as:
+`p5.api.compatibility.COMPATIBILITY_MATRIX` now classifies the epic 100 areas as:
 
 - `webgl`: `partial`
 - `webgl_renderer`: `partial`
@@ -265,7 +265,7 @@ Predictable failure behavior is intentional:
 - `media_playback`: `partial`
 - `media_capture`: `partial`
 
-Implemented wrappers live in `src/p5_py/api/advanced.py` and are re-exported through `src/p5_py/api/compatibility.py` and `src/p5_py/__init__.py`. Remaining deferred APIs still raise immediate, intentional package-specific errors instead of failing with missing attributes.
+Implemented wrappers live in `src/p5/api/advanced.py` and are re-exported through `src/p5/api/compatibility.py` and `src/p5/__init__.py`. Remaining deferred APIs still raise immediate, intentional package-specific errors instead of failing with missing attributes.
 
 ## Next implementation milestones
 

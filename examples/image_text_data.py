@@ -13,7 +13,7 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-import p5_py as p5
+import p5
 
 OUTPUT = Path("examples/output/image_text_data.png")
 DATA_PATH = Path("examples/output/image_text_data.json")

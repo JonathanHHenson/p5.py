@@ -1,4 +1,4 @@
-from p5_py import Sketch
+from p5 import Sketch
 
 
 class CounterSketch(Sketch):

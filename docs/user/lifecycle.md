@@ -12,7 +12,7 @@ A `p5-py` sketch follows the familiar p5 lifecycle:
 ## Function/global mode
 
 ```python
-import p5_py as p5
+import p5
 
 
 def setup() -> None:
@@ -30,7 +30,7 @@ p5.run(setup=setup, draw=draw)
 ## Object-oriented mode
 
 ```python
-from p5_py import Sketch
+from p5 import Sketch
 
 
 class MySketch(Sketch):

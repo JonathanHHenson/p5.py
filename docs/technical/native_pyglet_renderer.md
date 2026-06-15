@@ -55,9 +55,9 @@ With this split:
 The first native milestone keeps the backend as a single file and adds a separate renderer module:
 
 ```text
-src/p5_py/backends/pyglet.py                 # window, event loop, input, scheduling
-src/p5_py/backends/pyglet_renderer.py        # Pyglet presentation plus parity rendering
-src/p5_py/backends/pyglet_webgl_renderer.py  # native depth-tested WEBGL renderer + shader path
+src/p5/backends/pyglet.py                 # window, event loop, input, scheduling
+src/p5/backends/pyglet_renderer.py        # Pyglet presentation plus parity rendering
+src/p5/backends/pyglet_webgl_renderer.py  # native depth-tested WEBGL renderer + shader path
 ```
 
 The backend can still be split into a package later if Pyglet-specific event, renderer, or capability code grows enough to justify it.

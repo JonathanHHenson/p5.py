@@ -1,7 +1,7 @@
 from pathlib import Path
 
-import p5_py as p5
-from p5_py.assets import sound as sound_module
+import p5
+from p5.assets import sound as sound_module
 
 
 class _FakeSource:

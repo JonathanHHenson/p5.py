@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 from argparse import ArgumentParser
 
-import p5_py as p5
-from p5_py.exceptions import BackendCapabilityError, ShaderCompilationError
+import p5
+from p5.exceptions import BackendCapabilityError, ShaderCompilationError
 
 VERTEX_SHADER = """
 #version 150

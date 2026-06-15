@@ -6,7 +6,7 @@ I want Rust acceleration to be neatly contained and simple to build,
 So that performance can improve without complicating the Python API.
 '''
 acceptance_criteria = '''
-A `crates/p5_accel` Rust crate builds through a documented `maturin` pipeline into `p5_py.rust._accelerated`. The package remains usable with Python fallbacks when the extension is unavailable.
+A `crates/p5_accel` Rust crate builds through a documented `maturin` pipeline into `p5.rust._accelerated`. The package remains usable with Python fallbacks when the extension is unavailable.
 '''
 priotity = 'medium'
 status = 'DONE'

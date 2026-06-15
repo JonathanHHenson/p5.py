@@ -23,7 +23,7 @@ uv sync --dev
 ## Your first sketch
 
 ```python
-import p5_py as p5
+import p5
 
 
 def setup() -> None:
@@ -59,7 +59,7 @@ uv run python examples/basic_shapes.py --backend headless --frames 1
 `p5-py` supports both:
 
 - function/global mode via `p5.run(setup=..., draw=...)`
-- object-oriented sketches by subclassing `p5_py.Sketch`
+- object-oriented sketches by subclassing `p5.Sketch`
 
 Global mode is convenient for small sketches and tutorials.
 Class-based sketches are a good fit for larger stateful sketches and internal extension points.

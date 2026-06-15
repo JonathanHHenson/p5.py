@@ -39,14 +39,14 @@ The package intentionally excludes browser-only areas such as:
 - `p5.Table` and `p5.TableRow`
 - browser-only APIs with no native Python equivalent
 
-These compatibility stubs raise explicit `p5_py` exceptions so unsupported features fail clearly.
+These compatibility stubs raise explicit `p5` exceptions so unsupported features fail clearly.
 
 ## Migration guidance
 
 When porting small p5.js sketches:
 
 1. keep the `setup()`/`draw()` structure
-2. switch imports to `import p5_py as p5`
+2. switch imports to `import p5`
 3. prefer snake_case as you touch code
 4. replace browser/DOM code with native Python alternatives or remove it
 5. use `headless` for deterministic tests while porting

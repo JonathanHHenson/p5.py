@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import p5_py as p5
+import p5
 
 ASSET_DIR = Path("examples/assets")
 OUTPUT = Path("examples/output/pixels_blend_export.png")

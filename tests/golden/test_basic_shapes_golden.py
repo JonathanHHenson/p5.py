@@ -1,6 +1,6 @@
 import hashlib
 
-import p5_py as p5
+import p5
 
 
 def _render_reference_pixels() -> bytes:

@@ -17,9 +17,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import p5_py as p5
-from p5_py.assets.media import Video
-from p5_py.exceptions import ArgumentValidationError, BackendCapabilityError
+import p5
+from p5.assets.media import Video
+from p5.exceptions import ArgumentValidationError, BackendCapabilityError
 
 OUTPUT = Path("examples/output/video_playback.png")
 VIDEO: Video | None = None
@@ -55,7 +55,7 @@ def draw_status() -> None:
     p5.text_size(13)
     p5.text(STARTUP_MESSAGE, 28, 72)
     p5.text("This example needs a user-supplied local video file.", 28, 96)
-    p5.text("Decoded frames are returned as p5_py Image values and drawn with image(...).", 28, 118)
+    p5.text("Decoded frames are returned as p5 Image values and drawn with image(...).", 28, 118)
 
 
 def draw() -> None:

@@ -33,21 +33,21 @@ The active Python version is defined by `.python-version` and `pyproject.toml`.
 Primary package code lives under:
 
 ```text
-src/p5_py/
+src/p5/
 ```
 
 Important areas:
 
 ```text
-src/p5_py/api/          global-mode API, p5.js aliases, compatibility stubs
-src/p5_py/backends/     backend implementations and backend registry
-src/p5_py/core/         color, geometry, state, transforms, math-like core systems
-src/p5_py/drawing/      renderer protocol and drawing abstractions
-src/p5_py/events/       normalized input/event state
-src/p5_py/pixels/       future pixel-buffer functionality
-src/p5_py/plugins/      future plugin architecture
-src/p5_py/rust/         future Rust acceleration integration
-src/p5_py/testing/      future testing helpers
+src/p5/api/          global-mode API, p5.js aliases, compatibility stubs
+src/p5/backends/     backend implementations and backend registry
+src/p5/core/         color, geometry, state, transforms, math-like core systems
+src/p5/drawing/      renderer protocol and drawing abstractions
+src/p5/events/       normalized input/event state
+src/p5/pixels/       future pixel-buffer functionality
+src/p5/plugins/      future plugin architecture
+src/p5/rust/         future Rust acceleration integration
+src/p5/testing/      future testing helpers
 ```
 
 Tests live under:
@@ -85,7 +85,7 @@ The intended layering is:
 ```text
 user sketch
   ↓
-p5_py public API
+p5 public API
   ↓
 Sketch / SketchContext
   ↓
@@ -112,7 +112,7 @@ Do not push sketch lifecycle, p5.js aliasing, or argument parsing into backend-s
 
 Future custom backends should be able to integrate by implementing the backend and renderer protocols and registering themselves through the backend registry.
 
-Avoid hardcoding backend classes outside `p5_py.backends.registry` and backend selection logic.
+Avoid hardcoding backend classes outside `p5.backends.registry` and backend selection logic.
 
 ### Keep p5 compatibility and Pythonic API together
 
@@ -138,7 +138,7 @@ Aliases must delegate to the same implementation. Do not duplicate behavior.
 
 ### Keep exports type-checker friendly
 
-`src/p5_py/__init__.py` should use explicit imports for public APIs. Avoid dynamic wildcard export machinery that makes Zed/Pyright unable to see package attributes.
+`src/p5/__init__.py` should use explicit imports for public APIs. Avoid dynamic wildcard export machinery that makes Zed/Pyright unable to see package attributes.
 
 ## Rendering guidance
 

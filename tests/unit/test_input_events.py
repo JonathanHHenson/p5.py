@@ -1,11 +1,11 @@
 import pytest
 
-from p5_py.backends.headless import HeadlessBackend
-from p5_py.context import SketchContext
-from p5_py.events.input_state import KeyboardEvent, MouseEvent, TouchEvent, TouchPoint
-from p5_py.exceptions import BackendCapabilityError
-from p5_py.plugins.registry import GLOBAL_PLUGIN_REGISTRY
-from p5_py.sketch import Sketch
+from p5.backends.headless import HeadlessBackend
+from p5.context import SketchContext
+from p5.events.input_state import KeyboardEvent, MouseEvent, TouchEvent, TouchPoint
+from p5.exceptions import BackendCapabilityError
+from p5.plugins.registry import GLOBAL_PLUGIN_REGISTRY
+from p5.sketch import Sketch
 
 
 class EventSketch(Sketch):

@@ -1,7 +1,7 @@
 import math
 from pathlib import Path
 
-import p5_py as p5
+import p5
 
 
 def test_webgl_box_renders_non_empty_headless_canvas():

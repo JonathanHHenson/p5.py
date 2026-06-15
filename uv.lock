@@ -278,7 +278,7 @@ wheels = [
 ]
 
 [[package]]
-name = "p5-py"
+name = "p5py-vibe"
 version = "0.1.2"
 source = { editable = "." }
 dependencies = [

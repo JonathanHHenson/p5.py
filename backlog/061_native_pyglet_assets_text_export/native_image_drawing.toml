@@ -15,7 +15,7 @@ status = 'DONE'
 order = 1
 status = 'DONE'
 description = '''
-Design a texture upload/cache path from `p5_py.assets.image.Image` to native Pyglet texture/image objects without leaking Pyglet dependencies into the public API.
+Design a texture upload/cache path from `p5.assets.image.Image` to native Pyglet texture/image objects without leaking Pyglet dependencies into the public API.
 '''
 
 [my_pbi.task_2]

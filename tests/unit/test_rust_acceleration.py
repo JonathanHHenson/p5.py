@@ -3,11 +3,11 @@ from __future__ import annotations
 import pytest
 from PIL import Image as PILImage
 
-import p5_py.rust as rust_acceleration
-from p5_py.backends.pillow import _exclusion
-from p5_py.core import random as random_module
-from p5_py.rust import _accelerated as original_accelerated
-from p5_py.rust import (
+import p5.rust as rust_acceleration
+from p5.backends.pillow import _exclusion
+from p5.core import random as random_module
+from p5.rust import _accelerated as original_accelerated
+from p5.rust import (
     benchmarks,
     exclusion_blend_rgb,
     exclusion_blend_rgb_python,

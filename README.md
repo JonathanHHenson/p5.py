@@ -12,7 +12,7 @@ The public API is intentionally Python-first:
 
 - canonical APIs use `snake_case`, such as `create_canvas()` and `frame_rate()`
 - p5.js-style aliases such as `createCanvas()` and `frameRate()` delegate to the same implementations
-- excluded browser-only APIs fail with explicit `p5_py` exceptions instead of failing indirectly
+- excluded browser-only APIs fail with explicit `p5` exceptions instead of failing indirectly
 
 ## Installation
 
@@ -37,7 +37,7 @@ uv sync --dev
 ## Quick start
 
 ```python
-import p5_py as p5
+import p5
 
 
 def setup() -> None:

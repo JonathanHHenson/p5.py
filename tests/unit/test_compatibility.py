@@ -1,7 +1,7 @@
 import pytest
 
-import p5_py as p5
-from p5_py import ArgumentValidationError, UnsupportedFeatureError
+import p5
+from p5 import ArgumentValidationError, UnsupportedFeatureError
 
 
 def test_dom_apis_are_explicitly_excluded():

@@ -5,7 +5,7 @@ Epic 110 adds an optional plugin registry so extensions can integrate without mo
 ## Public APIs
 
 ```python
-from p5_py.plugins import Plugin, install_plugin, uninstall_plugin, clear_plugins, list_plugins
+from p5.plugins import Plugin, install_plugin, uninstall_plugin, clear_plugins, list_plugins
 ```
 
 ## Hook ordering
@@ -38,7 +38,7 @@ Event hooks:
 Plugins can publish new sketch APIs at install time:
 
 ```python
-from p5_py.plugins import Plugin, install_plugin
+from p5.plugins import Plugin, install_plugin
 
 
 class GridPlugin(Plugin):
@@ -60,7 +60,7 @@ install_plugin(GridPlugin())
 
 After installation the API is available from:
 
-- global mode through `p5_py.draw_grid(...)`
+- global mode through `p5.draw_grid(...)`
 - class-based sketches through `self.draw_grid(...)`
 - the underlying context through `context.draw_grid(...)`
 

@@ -46,7 +46,7 @@ Before the first public release, confirm the repository license file and any pro
 
 ## GitHub Actions publishing
 
-The repository includes `p5_py/.github/workflows/publish.yml` for trusted publishing.
+The repository includes `p5/.github/workflows/publish.yml` for trusted publishing.
 
 Behavior:
 

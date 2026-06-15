@@ -1,5 +1,5 @@
-import p5_py as p5
-from p5_py.core.transform import Matrix2D
+import p5
+from p5.core.transform import Matrix2D
 
 
 def test_color_modes_hsb():
