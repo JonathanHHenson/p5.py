@@ -22,6 +22,7 @@ uv run pytest
 uv run python examples/basic_shapes.py --backend headless --frames 1
 uv build
 uvx maturin build --release
+uvx maturin build --release --manifest-path crates/p5_canvas/Cargo.toml --module-name p5.rust._canvas --python-source src --features extension-module
 ```
 
 ## Pure-Python build
@@ -32,13 +33,21 @@ uv build
 
 This should produce an sdist and wheel using the default hatchling configuration.
 
-## Optional Rust-backed wheel
+## Optional Rust-backed wheels
+
+The default maturin target builds `p5.rust._accelerated`:
 
 ```sh
 uvx maturin build --release
 ```
 
-The package must remain usable without the compiled extension. Rust acceleration is optional and should preserve Python fallback behavior.
+The experimental canvas target is built explicitly:
+
+```sh
+uvx maturin build --release --manifest-path crates/p5_canvas/Cargo.toml --module-name p5.rust._canvas --python-source src --features extension-module
+```
+
+The package must remain usable without compiled extensions. Rust acceleration is optional and should preserve Python fallback behavior. The `canvas` backend is opt-in and should fail with `BackendCapabilityError` when `p5.rust._canvas` is not installed.
 
 ## Publishing notes
 

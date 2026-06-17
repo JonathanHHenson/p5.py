@@ -52,10 +52,17 @@ Package build smoke test:
 uv build
 ```
 
-Rust-backed wheel smoke test:
+Rust acceleration wheel smoke test:
 
 ```sh
 uvx maturin build --release
+```
+
+Rust canvas crate and wheel smoke tests:
+
+```sh
+cargo test --manifest-path crates/p5_canvas/Cargo.toml
+uvx maturin build --release --manifest-path crates/p5_canvas/Cargo.toml --module-name p5.rust._canvas --python-source src --features extension-module
 ```
 
 ## Test layers

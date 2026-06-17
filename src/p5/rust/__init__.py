@@ -10,6 +10,13 @@ from __future__ import annotations
 import math
 from typing import Protocol, cast
 
+from p5.rust.canvas import (
+    canvas_health_check,
+    canvas_import_error,
+    is_canvas_available,
+    require_canvas_extension,
+)
+
 ByteBuffer = bytes | bytearray | memoryview
 
 
@@ -215,8 +222,12 @@ __all__ = [
     "acceleration_import_error",
     "exclusion_blend_rgb",
     "exclusion_blend_rgb_python",
+    "canvas_health_check",
+    "canvas_import_error",
     "health_check",
     "is_acceleration_available",
+    "is_canvas_available",
     "noise_3d",
     "noise_3d_python",
+    "require_canvas_extension",
 ]

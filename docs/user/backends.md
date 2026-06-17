@@ -28,10 +28,16 @@ Interactive native backend intended for:
 - native presentation
 - HiDPI-aware interactive drawing
 
+### `canvas`
+
+Experimental Rust-backed backend scaffold for the future `p5_canvas` renderer/runtime.
+It is opt-in, is not the default, and currently requires the optional `p5.rust._canvas` extension. Until rendering/runtime support lands, selecting `backend="canvas"` without the extension raises `BackendCapabilityError` with local build instructions.
+
 ## Choosing a backend
 
 Use `headless` when you need reproducibility.
 Use `pyglet` when you need an actual interactive window.
+Use `canvas` only when working on the experimental Rust backend bridge.
 
 Examples:
 

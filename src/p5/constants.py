@@ -52,6 +52,7 @@ WEBGL = "webgl"
 HEADLESS = "headless"
 PYGLET = "pyglet"
 PILLOW = "pillow"
+CANVAS = "canvas"
 
 # Blend modes
 BLEND = "blend"
@@ -107,6 +108,7 @@ __all__ = [
     "CORNER",
     "CORNERS",
     "CENTER",
+    "CANVAS",
     "RADIUS",
     "OPEN",
     "CLOSE",

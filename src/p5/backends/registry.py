@@ -11,6 +11,7 @@ from p5.exceptions import BackendCapabilityError
 type BackendEntry = type[Any] | str
 
 _BACKENDS: dict[str, BackendEntry] = {
+    "canvas": "p5.backends.canvas:CanvasBackend",
     "headless": "p5.backends.headless:HeadlessBackend",
     "pillow": "p5.backends.headless:HeadlessBackend",
     "pyglet": "p5.backends.pyglet:PygletBackend",

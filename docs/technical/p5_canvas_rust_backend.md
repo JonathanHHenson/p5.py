@@ -414,17 +414,36 @@ WEBGL/3D and shader support should be a separate milestone. The backend should n
 
 ## Build and packaging strategy
 
-The repository currently has `crates/p5_accel` and a single `[tool.maturin]` section that builds `p5.rust._accelerated`. `p5_canvas` needs a build plan that does not break existing optional acceleration.
+The foundation bridge uses two independent PyO3 crates with explicit maturin commands per module. This keeps the existing `p5_accel` extension stable while allowing `p5_canvas` to grow heavier rendering/runtime dependencies independently.
 
-Options to evaluate:
+Current layout:
 
-1. A Cargo workspace with separate extension crates and explicit maturin commands per module.
-2. One combined Rust extension module that exposes both acceleration and canvas APIs.
-3. Two independent crates with documented local build commands and CI jobs.
+```text
+crates/p5_accel/   -> p5.rust._accelerated
+crates/p5_canvas/  -> p5.rust._canvas
+```
 
-The preferred starting point is a separate crate at `crates/p5_canvas` exposing `p5.rust._canvas`, because rendering/runtime dependencies will be heavier and more platform-sensitive than pure acceleration helpers.
+`pyproject.toml` keeps its single `[tool.maturin]` section pointed at `crates/p5_accel/Cargo.toml`, so existing acceleration commands continue to build `p5.rust._accelerated` by default:
 
-The Python package should remain importable when `_canvas` is unavailable. Selecting backend `canvas` without the extension should raise a clear `BackendCapabilityError` explaining how to build/install the Rust backend.
+```sh
+uvx maturin develop --release
+uvx maturin build --release
+```
+
+Build the canvas extension explicitly:
+
+```sh
+uvx maturin develop --release --manifest-path crates/p5_canvas/Cargo.toml --module-name p5.rust._canvas --python-source src --features extension-module
+uvx maturin build --release --manifest-path crates/p5_canvas/Cargo.toml --module-name p5.rust._canvas --python-source src --features extension-module
+```
+
+Run Rust crate tests directly with Cargo:
+
+```sh
+cargo test --manifest-path crates/p5_canvas/Cargo.toml
+```
+
+The Python package remains importable when `_canvas` is unavailable. Selecting backend `canvas` without the extension raises `BackendCapabilityError` with the local maturin build command and fallback backend guidance.
 
 ## Testing strategy
 
@@ -438,11 +457,17 @@ Use layered validation:
 6. Interactive smoke tests for native windows, frame scheduling, resize, close, and display density.
 7. Platform CI coverage where practical for macOS, Linux, and Windows.
 
-For rendering changes, keep running:
+For bridge changes, keep running:
 
 ```sh
 uv run ruff check .
 uv run pytest
+cargo test --manifest-path crates/p5_canvas/Cargo.toml
+```
+
+For rendering changes, also keep running:
+
+```sh
 uv run python examples/basic_shapes.py --backend headless --frames 1
 ```
 
@@ -469,6 +494,5 @@ uv run python examples/basic_shapes.py --backend canvas --frames 1
 - Should the renderer bridge send individual method calls or batched draw commands per frame?
 - How much font rendering difference is acceptable compared with Pillow/Pyglet?
 - Should image decoding move into Rust immediately, or should the first bridge upload bytes from Python `Image` objects?
-- How should multiple Python extension crates be packaged with the existing Hatch/maturin setup?
 - What is the earliest milestone where `canvas` can become the default backend?
 - Should WEBGL/3D replacement live in `p5_canvas` from the beginning, or in a later renderer module sharing the same runtime/window layer?
