@@ -9,10 +9,11 @@ The canvas backend currently supports an interactive and headless/offscreen P2D 
 - canvas sizing and pixel density
 - `background()` and `clear()`
 - `point()`, `line()`, `rect()`, `triangle()`, `quad()`, `circle()`, `ellipse()`, and `arc()`
-- fill, stroke, stroke weight, transforms, and `BLEND` compositing
+- fill, stroke, stroke weight, transforms, and advertised 2D blend modes
+- image drawing, source cropping, destination scaling, and text rendering/metrics
 - `load_pixels()`, `update_pixels()`, and `save_canvas()`
 
-It now provides a native `winit` + `softbuffer` interactive window/event-loop layer, but it still does not yet support text, images, arbitrary blend modes, or WEBGL.
+It now provides a native `winit` + `wgpu` interactive window/event-loop layer. WEBGL is still handled by the Pyglet WEBGL renderer rather than the Rust canvas backend.
 
 Build the Rust extension before running these examples with `backend="canvas"`:
 
@@ -26,6 +27,9 @@ Run interactively:
 uv run python examples/new_rust_backend/canvas_primitives.py
 uv run python examples/new_rust_backend/canvas_transforms_density.py
 uv run python examples/new_rust_backend/canvas_pixels_export.py
+uv run python examples/new_rust_backend/canvas_assets_text.py
+uv run python examples/new_rust_backend/canvas_blend_erase.py
+uv run python examples/new_rust_backend/canvas_asteroids.py
 ```
 
 Run bounded offscreen/export passes:
@@ -34,6 +38,9 @@ Run bounded offscreen/export passes:
 uv run python examples/new_rust_backend/canvas_primitives.py --frames 1
 uv run python examples/new_rust_backend/canvas_transforms_density.py --frames 1
 uv run python examples/new_rust_backend/canvas_pixels_export.py --frames 1
+uv run python examples/new_rust_backend/canvas_assets_text.py --frames 1
+uv run python examples/new_rust_backend/canvas_blend_erase.py --frames 1
+uv run python examples/new_rust_backend/canvas_asteroids.py --frames 1
 ```
 
 For comparison against the Pillow/headless renderer, pass `--backend headless`:

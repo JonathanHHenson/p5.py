@@ -1,12 +1,9 @@
-"""Asteroids-style demo for the experimental Rust canvas backend.
+"""Playable asset-based Asteroids demo for the Rust canvas backend.
 
-This example replaces all image loading with drawn primitives since the
-Rust canvas does not yet support ``p5.image()``.
-
-Run interactively with the Rust canvas backend (requires native runtime):
+Run interactively:
     uv run python examples/new_rust_backend/canvas_asteroids.py
 
-Run a bounded offscreen/export pass:
+Run/export a bounded preview:
     uv run python examples/new_rust_backend/canvas_asteroids.py --frames 1
 """
 
@@ -19,14 +16,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import p5
+from p5.events.input_state import KeyboardEvent, MouseEvent
 
+ASSET_DIR = Path("examples/assets")
 DEFAULT_OUTPUT = Path("examples/output/new_rust_backend/canvas_asteroids.png")
-EXPORT_CANVAS = True
-OUTPUT = DEFAULT_OUTPUT
 
 CANVAS_WIDTH = 720
 CANVAS_HEIGHT = 480
 SHIP_RADIUS = 28.0
+SHIP_SPRITE_WIDTH = 86
+SHIP_SPRITE_HEIGHT = 64
 LASER_SPRITE_WIDTH = 12
 LASER_SPRITE_HEIGHT = 36
 SHOT_RADIUS = 5.0
@@ -63,36 +62,56 @@ class Asteroid:
         return 50 * (4 - self.size)
 
 
-class AsteroidsDemo:
-    def __init__(self, *, export_canvas: bool) -> None:
+class AsteroidsDemo(p5.Sketch):
+    def __init__(
+        self,
+        *,
+        backend: str = p5.CANVAS,
+        export_canvas: bool = False,
+        output: Path = DEFAULT_OUTPUT,
+    ) -> None:
+        super().__init__(backend=backend)
         self.export_canvas = export_canvas
-        self.ship_x = CANVAS_WIDTH / 2.0
-        self.ship_y = CANVAS_HEIGHT / 2.0
+        self.output = output
+        self.use_sprite_assets = backend != p5.CANVAS
+        self.ship: p5.Image | None = None
+        self.laser: p5.Image | None = None
+        self.meteor_large: p5.Image | None = None
+        self.meteor_medium: p5.Image | None = None
+        self.meteor_small: p5.Image | None = None
+        self.thrust_flame: p5.Image | None = None
+        self.ship_x = CANVAS_WIDTH / 2
+        self.ship_y = CANVAS_HEIGHT / 2
         self.ship_vx = 0.0
         self.ship_vy = 0.0
-        self.ship_angle: float = -math.pi / 2.0
+        self.ship_angle = -math.pi / 2
         self.shots: list[Shot] = []
         self.asteroids: list[Asteroid] = []
         self.score = 0
         self.lives = 3
         self.wave = 1
         self.cooldown = 0
-        self.invulnerable: int = INVULNERABLE_FRAMES
+        self.invulnerable = INVULNERABLE_FRAMES
         self.game_over = False
         self.last_key = "none"
-
-        # FPS logging state
-        self._fps_frames: int = 0
-        self._fps_last_print: float = time.monotonic()
+        self._fps_frames = 0
+        self._fps_last_print = time.monotonic()
 
     def setup(self) -> None:
         p5.create_canvas(CANVAS_WIDTH, CANVAS_HEIGHT)
         p5.frame_rate(60)
+        p5.image_mode(p5.CENTER)
+        if self.use_sprite_assets:
+            self.ship = p5.load_image(ASSET_DIR / "playerShip1_blue.png")
+            self.laser = p5.load_image(ASSET_DIR / "Lasers/laserBlue01.png")
+            self.meteor_large = p5.load_image(ASSET_DIR / "Meteors/meteorGrey_big1.png")
+            self.meteor_medium = p5.load_image(ASSET_DIR / "Meteors/meteorGrey_med1.png")
+            self.meteor_small = p5.load_image(ASSET_DIR / "Meteors/meteorGrey_small1.png")
+            self.thrust_flame = p5.load_image(ASSET_DIR / "Effects/fire17.png")
         self._reset_game()
 
     def draw(self) -> None:
         self._update_fps()
-
         if not self.game_over:
             self._update_ship()
             self._update_shots()
@@ -108,26 +127,36 @@ class AsteroidsDemo:
         self._draw_ship()
         self._draw_hud()
 
-        if EXPORT_CANVAS and p5.frame_count() == 0:
-            OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-            p5.save_canvas(str(OUTPUT), overwrite=True)
+        if self.export_canvas and p5.frame_count() == 0:
+            self.output.parent.mkdir(parents=True, exist_ok=True)
+            p5.save_canvas(str(self.output), overwrite=True)
 
-    def key_pressed(self, event: object = None) -> None:  # noqa: ARG002
-        if _key_matches("r") and self.game_over:
-            self._reset_game()
-
-    def key_typed(self, event: object = None) -> None:  # noqa: ARG002
-        self.last_key = "typed"
-
-    def mouse_pressed(self, event: object = None) -> None:  # noqa: ARG002
+    def mouse_pressed(self, event: MouseEvent) -> None:
+        self._aim_toward(event.x, event.y)
         self._fire()
 
+    def mouse_dragged(self, event: MouseEvent) -> None:
+        self._aim_toward(event.x, event.y)
+
+    def mouse_moved(self, event: MouseEvent) -> None:
+        self._aim_toward(event.x, event.y)
+
+    def key_pressed(self, event: KeyboardEvent) -> None:
+        self.last_key = event.key or str(event.key_code)
+        if _key_matches(event, "r") and self.game_over:
+            self._reset_game()
+        if _key_matches(event, " "):
+            self._fire()
+
+    def key_typed(self, event: KeyboardEvent) -> None:
+        self.last_key = event.key or "typed"
+
     def _reset_game(self) -> None:
-        self.ship_x = CANVAS_WIDTH / 2.0
-        self.ship_y = CANVAS_HEIGHT / 2.0
+        self.ship_x = CANVAS_WIDTH / 2
+        self.ship_y = CANVAS_HEIGHT / 2
         self.ship_vx = 0.0
         self.ship_vy = 0.0
-        self.ship_angle = -math.pi / 2.0
+        self.ship_angle = -math.pi / 2
         self.shots.clear()
         self.score = 0
         self.lives = 3
@@ -143,14 +172,14 @@ class AsteroidsDemo:
         elapsed = now - self._fps_last_print
         if elapsed >= 1.0:
             fps = self._fps_frames / elapsed
-            print(f"[FPS] {int(fps)} ({self._fps_frames} frames in {elapsed:.3f}s)")
+            print(f"[FPS] {fps:.1f} ({self._fps_frames} frames in {elapsed:.3f}s)")
             self._fps_frames = 0
             self._fps_last_print = now
 
     def _spawn_wave(self) -> None:
         self.shots.clear()
         count = min(3 + self.wave, 8)
-        self.asteroids.clear()
+        self.asteroids = []
         for index in range(count):
             side = index % 4
             if side == 0:
@@ -180,14 +209,14 @@ class AsteroidsDemo:
         if self.invulnerable > 0:
             self.invulnerable -= 1
 
-        if p5.key_is_down(ord("a")) or p5.key_is_down(p5.LEFT_ARROW):
+        if _key_down("a") or p5.key_is_down(p5.LEFT_ARROW):
             self.ship_angle -= 0.075
-        if p5.key_is_down(ord("d")) or p5.key_is_down(p5.RIGHT_ARROW):
+        if _key_down("d") or p5.key_is_down(p5.RIGHT_ARROW):
             self.ship_angle += 0.075
-        if p5.key_is_down(ord("w")) or p5.key_is_down(p5.UP_ARROW):
+        if _key_down("w") or p5.key_is_down(p5.UP_ARROW):
             self.ship_vx += math.cos(self.ship_angle) * 0.22
             self.ship_vy += math.sin(self.ship_angle) * 0.22
-        if p5.key_is_down(ord(" ")) or p5.mouse_button == 1:
+        if _key_down(" "):
             self._fire()
 
         self.ship_vx *= 0.992
@@ -227,8 +256,9 @@ class AsteroidsDemo:
             for index, asteroid in enumerate(self.asteroids):
                 if index in hit_asteroids:
                     continue
-                if _wrapped_distance(shot.x, shot.y, asteroid.x, asteroid.y) <= (
-                    asteroid.radius + SHOT_RADIUS
+                if (
+                    _wrapped_distance(shot.x, shot.y, asteroid.x, asteroid.y)
+                    <= asteroid.radius + SHOT_RADIUS
                 ):
                     hit_index = index
                     break
@@ -249,8 +279,9 @@ class AsteroidsDemo:
         if self.invulnerable > 0:
             return
         for asteroid in self.asteroids:
-            if _wrapped_distance(self.ship_x, self.ship_y, asteroid.x, asteroid.y) <= (
-                asteroid.radius + SHIP_RADIUS
+            if (
+                _wrapped_distance(self.ship_x, self.ship_y, asteroid.x, asteroid.y)
+                <= asteroid.radius + SHIP_RADIUS
             ):
                 self._lose_life()
                 break
@@ -282,19 +313,19 @@ class AsteroidsDemo:
         if self.lives <= 0:
             self.game_over = True
             return
-        self.ship_x = CANVAS_WIDTH / 2.0
-        self.ship_y = CANVAS_HEIGHT / 2.0
+        self.ship_x = CANVAS_WIDTH / 2
+        self.ship_y = CANVAS_HEIGHT / 2
         self.ship_vx = 0.0
         self.ship_vy = 0.0
-        self.ship_angle = -math.pi / 2.0
+        self.ship_angle = -math.pi / 2
         self.shots.clear()
         self.invulnerable = INVULNERABLE_FRAMES
 
     def _fire(self) -> None:
         if self.game_over or self.cooldown > 0:
             return
-        nose_x = self.ship_x + math.cos(self.ship_angle) * 34.0
-        nose_y = self.ship_y + math.sin(self.ship_angle) * 34.0
+        nose_x = self.ship_x + math.cos(self.ship_angle) * 34
+        nose_y = self.ship_y + math.sin(self.ship_angle) * 34
         self.shots.append(
             Shot(
                 x=nose_x,
@@ -304,6 +335,9 @@ class AsteroidsDemo:
             )
         )
         self.cooldown = 10
+
+    def _aim_toward(self, x: float, y: float) -> None:
+        self.ship_angle = math.atan2(y - self.ship_y, x - self.ship_x)
 
     def _draw_space(self) -> None:
         p5.background(8, 13, 32)
@@ -319,31 +353,35 @@ class AsteroidsDemo:
         for shot in self.shots:
             with p5.pushed():
                 p5.translate(shot.x, shot.y)
-                angle = math.atan2(shot.vy, shot.vx) + math.pi / 2.0
-                p5.rotate(angle)
-                # Draw laser as a small rectangle (scaled down from sprite dims)
-                p5.stroke(100, 200, 255, 240)
-                p5.stroke_weight(3)
-                p5.no_fill()
-                p5.line(0, -LASER_SPRITE_HEIGHT / 2.0, 0, LASER_SPRITE_HEIGHT / 2.0)
+                p5.rotate(math.atan2(shot.vy, shot.vx) + math.pi / 2)
+                if self.laser is not None:
+                    p5.image(self.laser, 0, 0, LASER_SPRITE_WIDTH, LASER_SPRITE_HEIGHT)
+                else:
+                    p5.stroke(100, 200, 255, 240)
+                    p5.stroke_weight(3)
+                    p5.line(0, -LASER_SPRITE_HEIGHT / 2, 0, LASER_SPRITE_HEIGHT / 2)
 
     def _draw_asteroids(self) -> None:
         for asteroid in self.asteroids:
-            diameter = asteroid.radius * 2.0
-            p5.no_fill()
-            p5.stroke(180, 190, 210)
-            # Draw asteroid as an ellipse with spin (closest to polygon available)
-            aspect = 0.7 + asteroid.size * 0.1
+            image = self._asteroid_image(asteroid)
+            diameter = asteroid.radius * 2
+            if image is None:
+                p5.no_fill()
+                p5.stroke(180, 190, 210)
+                p5.stroke_weight(2.5)
+                with p5.pushed():
+                    p5.translate(asteroid.x, asteroid.y)
+                    p5.rotate(asteroid.angle)
+                    p5.ellipse(0, 0, diameter * (0.7 + asteroid.size * 0.1), diameter)
+                continue
             with p5.pushed():
                 p5.translate(asteroid.x, asteroid.y)
                 p5.rotate(asteroid.angle)
-                p5.ellipse(0, 0, diameter * aspect, diameter)
+                p5.image(image, 0, 0, diameter, diameter)
 
     def _draw_ship(self) -> None:
         if self.game_over:
             return
-
-        # Blink when invulnerable
         if self.invulnerable > 0 and p5.frame_count() % 12 < 6:
             return
 
@@ -351,24 +389,14 @@ class AsteroidsDemo:
         if thrusting:
             self._draw_thrust_flame()
 
-        # Draw ship body as a filled triangle pointing upward (rotated)
-        with p5.pushed():
-            p5.translate(self.ship_x, self.ship_y)
-            angle = self.ship_angle + math.pi / 2.0
-            p5.rotate(angle)
+        if self.ship is not None:
+            with p5.pushed():
+                p5.translate(self.ship_x, self.ship_y)
+                p5.rotate(self.ship_angle + math.pi / 2)
+                p5.image(self.ship, 0, 0, SHIP_SPRITE_WIDTH, SHIP_SPRITE_HEIGHT)
+        else:
+            self._draw_fallback_ship()
 
-            # Draw ship body as two triangles (bow pointing UP in local space)
-            half_width = SHIP_RADIUS * 0.85
-            wing_slot_y = SHIP_RADIUS * 0.18
-
-            p5.stroke(170, 225, 255, 255)
-            p5.stroke_weight(3)
-            p5.fill(36, 116, 220, 245)
-            # Simplified: two triangles forming a pointed bow shape
-            p5.triangle(0, -SHIP_RADIUS, -half_width, SHIP_RADIUS * 0.72, 0, wing_slot_y)
-            p5.triangle(0, -SHIP_RADIUS, 0, wing_slot_y, half_width, SHIP_RADIUS * 0.72)
-
-        # Draw invulnerability ring
         if self.invulnerable > 0:
             p5.no_fill()
             p5.stroke(78, 205, 255, 150)
@@ -376,117 +404,99 @@ class AsteroidsDemo:
             p5.circle(self.ship_x, self.ship_y, SHIP_RADIUS * 2.7)
 
     def _draw_hud(self) -> None:
-        # Draw HUD using rectangles and lines (no text support yet)
-        # Score bar: filled rectangle at top-left with score as bar height indicator
-        p5.no_stroke()
+        if not self.use_sprite_assets:
+            self._draw_canvas_hud()
+            return
 
-        # Top line (score) - simple text-like indicator using a thick rectangle
-        p5.stroke(255, 255, 255)
-        p5.stroke_weight(1)
-
-        # Draw score as a series of filled rects (score / 50 = kills, each block)
-        score_kills = self.score // 50
         p5.no_stroke()
-        for i in range(score_kills):
-            x = 28 + i * (LASER_SPRITE_WIDTH - 4)
+        p5.fill(255, 255, 255, 230)
+        p5.text_size(16)
+        p5.text(f"Score {self.score}", 28, 32)
+        p5.text(f"Lives {self.lives}", 28, 56)
+        p5.text(f"Wave {self.wave}", 28, 80)
+        p5.text("Rotate: A/D or arrows   Thrust: W/up   Fire: space/click", 28, CANVAS_HEIGHT - 40)
+        p5.text(f"Last key: {self.last_key!r}", 28, CANVAS_HEIGHT - 18)
+
+        if self.game_over:
+            p5.fill(255, 255, 255, 245)
+            p5.text_size(34)
+            p5.text("GAME OVER", CANVAS_WIDTH / 2 - 96, CANVAS_HEIGHT / 2 - 12)
+            p5.text_size(18)
+            p5.text("Press R to restart", CANVAS_WIDTH / 2 - 76, CANVAS_HEIGHT / 2 + 22)
+
+    def _draw_canvas_hud(self) -> None:
+        p5.no_stroke()
+        score_blocks = min(self.score // 50, 36)
+        for index in range(score_blocks):
             p5.fill(255, 196, 61)
-            if x < CANVAS_WIDTH - 20:
-                p5.rect(x, 16, LASER_SPRITE_WIDTH - 4, 8)
+            p5.rect(28 + index * 10, 22, 7, 8)
 
-        # Lives as small circles in bottom area
-        for i in range(self.lives):
-            lx = 28 + i * 24
-            ly = CANVAS_HEIGHT - 60
+        for index in range(self.lives):
             p5.fill(78, 205, 255)
             p5.stroke(255, 255, 255)
             p5.stroke_weight(1.5)
-            p5.circle(lx, ly, 16)
+            p5.circle(30 + index * 24, 54, 16)
 
-        # Wave as a filled rectangle bar
-        wave_x = 28.0
-        wave_width = min(self.wave * 40, CANVAS_WIDTH - 120)
         p5.no_stroke()
         p5.fill(90, 190, 255)
-        p5.rect(wave_x, CANVAS_HEIGHT - 36, wave_width, 12)
+        p5.rect(28, 74, min(self.wave * 36, CANVAS_WIDTH - 56), 8)
 
-        # Instructions as a series of colored bars (top right)
-        self._draw_instructions_bar()
-
-        # Game over screen as filled rectangles
-        if self.game_over:
-            p5.fill(8, 13, 32, 160)
-            p5.rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
-
-            # "GAME OVER" represented as horizontal line + info
-            center_x = CANVAS_WIDTH / 2.0
-            p5.no_stroke()
-            p5.fill(255, 80, 80)
-
-            # Draw a simple cross/collision symbol
-            p5.stroke(255, 80, 80)
-            p5.stroke_weight(4)
-            p5.line(
-                center_x - 36, CANVAS_HEIGHT / 2.0 - 18, center_x + 36, CANVAS_HEIGHT / 2.0 + 18
-            )
-            p5.line(
-                center_x - 36, CANVAS_HEIGHT / 2.0 + 18, center_x + 36, CANVAS_HEIGHT / 2.0 - 18
-            )
-
-            p5.stroke(255, 232, 96)
-            p5.no_fill()
-
-    def _draw_instructions_bar(self) -> None:
-        bar_x = CANVAS_WIDTH - 180.0
-        bar_y = 20.0
-
-        # Draw control info as colored rectangles stacked (no text yet)
-        p5.no_stroke()
-
-        # Rotate bar (A/D keys indicator)
         p5.fill(20, 145, 110)
-        for i in range(8):
-            p5.rect(bar_x, bar_y + i * 6, 60, 4)
-
-        # Thrust bar (W key indicator)
+        p5.rect(CANVAS_WIDTH - 174, CANVAS_HEIGHT - 44, 48, 6)
         p5.fill(244, 91, 105)
-        for i in range(6):
-            p5.rect(bar_x, bar_y + 52 + i * 6, 40, 4)
+        p5.rect(CANVAS_WIDTH - 114, CANVAS_HEIGHT - 44, 34, 6)
+        p5.fill(100, 200, 255)
+        p5.rect(CANVAS_WIDTH - 68, CANVAS_HEIGHT - 44, 40, 6)
 
-        # Fire bar (space/click indicator)
-        p5.fill(106, 76, 147)
-        for i in range(5):
-            p5.rect(bar_x, bar_y + 88 + i * 6, 72, 4)
+        if self.game_over:
+            p5.stroke(255, 80, 80)
+            p5.stroke_weight(5)
+            center_x = CANVAS_WIDTH / 2
+            center_y = CANVAS_HEIGHT / 2
+            p5.line(center_x - 42, center_y - 24, center_x + 42, center_y + 24)
+            p5.line(center_x - 42, center_y + 24, center_x + 42, center_y - 24)
 
     def _draw_thrust_flame(self) -> None:
+        if self.thrust_flame is not None:
+            with p5.pushed():
+                p5.translate(self.ship_x, self.ship_y)
+                p5.rotate(self.ship_angle + math.pi / 2)
+                p5.image(self.thrust_flame, 0, SHIP_RADIUS * 0.78, 34, 42)
+            return
+
         with p5.pushed():
             p5.translate(self.ship_x, self.ship_y)
-            angle = self.ship_angle + math.pi / 2.0
-            p5.rotate(angle)
-
-            # Flame extends from wing bottom (back of ship, +Y) outward away from bow (-Y)
-            half_width = SHIP_RADIUS * 0.85
-            wing_y = SHIP_RADIUS * 0.72  # base at ship's tail
-            outer_tip_y = SHIP_RADIUS * 1.36  # further from bow (more +Y)
-            inner_tip_y = SHIP_RADIUS * 1.02  # further from bow (more +Y)
-
-            # Outer flame: wide triangle from wing bottom corners, pointing away from bow
+            p5.rotate(self.ship_angle)
             p5.no_stroke()
             p5.fill(255, 138, 48, 210)
-            p5.triangle(-half_width, wing_y, half_width, wing_y, 0, outer_tip_y)
-
-            # Inner flame (yellow): narrower triangle from inner notch, pointing away from bow
+            p5.triangle(-18, 12, -18, -12, -38, 0)
             p5.fill(255, 232, 96, 230)
-            notch_y = SHIP_RADIUS * 0.18
-            p5.triangle(-notch_y, wing_y, notch_y, wing_y, 0, inner_tip_y)
+            p5.triangle(-18, 7, -18, -7, -30, 0)
+
+    def _draw_fallback_ship(self) -> None:
+        with p5.pushed():
+            p5.translate(self.ship_x, self.ship_y)
+            p5.rotate(self.ship_angle)
+            p5.stroke(170, 225, 255, 255)
+            p5.stroke_weight(3)
+            p5.fill(36, 116, 220, 245)
+            p5.triangle(32, 0, -24, -23, -13, 0)
+            p5.triangle(32, 0, -13, 0, -24, 23)
+
+    def _asteroid_image(self, asteroid: Asteroid) -> p5.Image | None:
+        if asteroid.size >= 3:
+            return self.meteor_large
+        if asteroid.size == 2:
+            return self.meteor_medium
+        return self.meteor_small
 
 
 def _key_down(value: str) -> bool:
     return p5.key_is_down(ord(value.lower())) or p5.key_is_down(ord(value.upper()))
 
 
-def _key_matches(value: str) -> bool:
-    # Simplified match for Rust canvas (no KeyboardEvent passed in headless)
-    return p5.key_is_down(ord(value.lower())) or p5.key_is_down(ord(value.upper()))
+def _key_matches(event: KeyboardEvent, value: str) -> bool:
+    return event.key == value or event.key_code in {ord(value.lower()), ord(value.upper())}
 
 
 def _wrap(value: float, maximum: float) -> float:
@@ -512,11 +522,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    global EXPORT_CANVAS, OUTPUT
-    OUTPUT = args.output
-    EXPORT_CANVAS = not args.no_save and args.frames is not None and args.frames > 0
-    demo = AsteroidsDemo(export_canvas=EXPORT_CANVAS)
-    p5.run(setup=demo.setup, draw=demo.draw, backend=args.backend, max_frames=args.frames)
+    export_canvas = not args.no_save and args.frames is not None and args.frames > 0
+    demo = AsteroidsDemo(backend=args.backend, export_canvas=export_canvas, output=args.output)
+    demo.run(max_frames=args.frames)
 
 
 if __name__ == "__main__":

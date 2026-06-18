@@ -229,6 +229,17 @@ Epics 091-092 now establish the first `wgpu` renderer foundation for offscreen/h
 
 Epic 093 replaces the interim CPU window presenter with direct `winit` + `wgpu::Surface` presentation. New feature PBIs for images, text, pixels, blend modes, and export should target the GPU renderer directly.
 
+Epic 094 expands the canvas feature surface for assets, pixels, compositing, and export. The current implementation keeps ordinary `BLEND` primitive drawing on the GPU command path and synchronizes the CPU-visible RGBA buffer only when a feature needs destination pixels or explicit output:
+
+- `load_pixels()`, `update_pixels()`, and `save_canvas()` use explicit GPU readback/upload and preserve top-left physical RGBA buffers.
+- `draw_image()` bridges p5-py `Image` RGBA data into a Rust-side image cache keyed by image identity/version. Rust owns source-rectangle cropping, affine transforms, destination scaling, clipping, image sampling modes, alpha compositing, erase behavior, and advertised blend modes after the first upload for a given image version.
+- `blend_region()` supports canvas and external image sources with HiDPI-aware source/destination rectangles.
+- `BLEND`, `REPLACE`, `ADD`, `DARKEST`, `LIGHTEST`, `DIFFERENCE`, `EXCLUSION`, `MULTIPLY`, and `SCREEN` are accepted by the canvas backend. Non-`BLEND` compositing and `erase()` render pending GPU commands, composite against the synchronized RGBA buffer, then upload the result back to the GPU texture.
+- Interactive presentation renders or updates the offscreen GPU texture first, then presents that texture to the native window. This keeps primitive, image, text, blend, pixel, and export paths on the same visible frame source.
+- `text()`, `text_width()`, `text_ascent()`, and `text_descent()` are exposed through a deterministic Pillow glyph-raster bridge that uploads clipped RGBA text overlays through the canvas image path. The native Rust font loading/shaping/glyph-atlas stack remains the next text milestone.
+
+This preserves the primitive-heavy fast path while making pixel/export and compositing APIs explicit synchronization boundaries. It is not yet a complete replacement for the planned Rust glyph atlas.
+
 ## Python API design
 
 ### `CanvasBackend`

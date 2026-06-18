@@ -3,7 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from PIL import Image as PILImage
 
+from p5 import Image
 from p5 import constants as c
 from p5.backends.canvas import CanvasBackend
 from p5.backends.canvas_renderer import CanvasRenderer
@@ -133,6 +135,9 @@ class FakeCanvas:
     def arc(self, *args: object) -> None:
         self.calls.append(("arc", *args))
 
+    def draw_image(self, *args: object) -> None:
+        self.calls.append(("draw_image", *args))
+
     def load_pixels(self) -> bytes:
         return self.pixels
 
@@ -141,6 +146,9 @@ class FakeCanvas:
         if len(pixels) != expected:
             raise ValueError(f"Pixel buffer length must be {expected}, got {len(pixels)}.")
         self.pixels = pixels
+
+    def blend_region(self, *args: object) -> None:
+        self.calls.append(("blend_region", *args))
 
     def save(self, path: str) -> None:
         self.calls.append(("save", path))
@@ -240,8 +248,8 @@ def test_canvas_backend_reports_implemented_capabilities() -> None:
 
     assert capabilities.interactive is False
     assert capabilities.headless is True
-    assert capabilities.text is False
-    assert capabilities.images is False
+    assert capabilities.text is True
+    assert capabilities.images is True
     assert capabilities.pixels is True
     assert capabilities.pixel_readback is True
     assert capabilities.pixel_update is True
@@ -251,7 +259,19 @@ def test_canvas_backend_reports_implemented_capabilities() -> None:
     assert capabilities.touch is False
     assert capabilities.paths is True
     assert capabilities.transforms is True
-    assert capabilities.blend_modes == frozenset({c.BLEND})
+    assert capabilities.blend_modes == frozenset(
+        {
+            c.BLEND,
+            c.REPLACE,
+            c.ADD,
+            c.DARKEST,
+            c.LIGHTEST,
+            c.DIFFERENCE,
+            c.EXCLUSION,
+            c.MULTIPLY,
+            c.SCREEN,
+        }
+    )
     assert capabilities.three_d is False
     assert capabilities.shaders is False
     assert capabilities.sound is False
@@ -326,6 +346,7 @@ def test_canvas_renderer_converts_style_color_and_transform_payloads() -> None:
         "stroke_weight": 3.0,
         "blend_mode": c.BLEND,
         "erasing": False,
+        "image_sampling": c.LINEAR,
     }
     assert call[3] == (1, 2, 3, 4, 5, 6)
     assert call[4] is False
@@ -346,6 +367,43 @@ def test_canvas_renderer_pixels_and_save_round_trip(tmp_path: Path) -> None:
     assert output.read_bytes() == b"fake-png"
 
 
+def test_canvas_renderer_bridges_images_and_blend_regions() -> None:
+    renderer = CanvasRenderer(FakeCanvasModule())
+    renderer.resize(4, 2)
+    image = Image(PILImage.new("RGBA", (2, 1), (255, 0, 0, 255)))
+    style = StyleState(fill_color=None, stroke_color=None)
+    transform = Matrix2D.identity()
+
+    renderer.draw_image(image, 1, 0, 2, 1, style, transform, source=(0, 0, 1, 1))
+    renderer.blend_region(image, (0, 0, 1, 1), (0, 1, 1, 1), c.ADD)
+    renderer.blend_region(None, (0, 0, 1, 1), (1, 1, 1, 1), c.BLEND)
+
+    canvas = renderer._canvas
+    assert canvas is not None
+    assert canvas.calls[-3][0] == "draw_image"
+    assert canvas.calls[-3][1] == image.pillow.tobytes()
+    assert canvas.calls[-3][2:4] == (2, 1)
+    assert canvas.calls[-3][-1] == (0, 0, 1, 1)
+    assert canvas.calls[-2] == (
+        "blend_region",
+        image.pillow.tobytes(),
+        2,
+        1,
+        (0, 0, 1, 1),
+        (0, 1, 1, 1),
+        c.ADD,
+    )
+    assert canvas.calls[-1] == (
+        "blend_region",
+        None,
+        None,
+        None,
+        (0, 0, 1, 1),
+        (1, 1, 1, 1),
+        c.BLEND,
+    )
+
+
 def test_canvas_renderer_maps_rust_value_errors() -> None:
     renderer = CanvasRenderer(FakeCanvasModule())
 
@@ -357,16 +415,17 @@ def test_canvas_renderer_maps_rust_value_errors() -> None:
         renderer.update_pixels([1, 2, 3])
 
 
-def test_canvas_renderer_keeps_unimplemented_features_explicit() -> None:
+def test_canvas_renderer_text_metrics_use_pillow_path() -> None:
     renderer = CanvasRenderer(FakeCanvasModule())
-    renderer.resize(1, 1)
+    renderer.resize(20, 20)
+    style = StyleState(fill_color=Color(255, 255, 255, 255), stroke_color=None)
 
-    with pytest.raises(BackendCapabilityError, match="image drawing"):
-        renderer.draw_image(object(), 0, 0, 1, 1, StyleState(), Matrix2D.identity())  # type: ignore[arg-type]
-    with pytest.raises(BackendCapabilityError, match="text drawing"):
-        renderer.text("hello", 0, 0, StyleState(), Matrix2D.identity())
-    with pytest.raises(BackendCapabilityError, match="region blending"):
-        renderer.blend_region(None, (0, 0, 1, 1), (0, 0, 1, 1), c.BLEND)
+    assert renderer.text_width("hello", style) > 0
+    assert renderer.text_ascent(style) > 0
+    assert renderer.text_descent(style) >= 0
+    renderer.text("hello", 0, 12, style, Matrix2D.identity())
+    assert renderer._canvas is not None
+    assert renderer._canvas.calls[-1][0] == "draw_image"
 
 
 def test_canvas_backend_headless_run_defaults_to_requested_frame_count(

@@ -7,12 +7,21 @@ use pyo3::types::{PyAny, PyDict};
 use runtime::{
     native_window_available as runtime_native_window_available, InteractiveRuntime, RuntimeEvent,
 };
+use std::collections::HashMap;
 use std::f64::consts::PI;
 
 const SUPPORTED_RENDERER: &str = "p2d";
 const SUPPORTED_MODE: &str = "headless";
 const INTERACTIVE_MODE: &str = "interactive";
-const SUPPORTED_BLEND_MODE: &str = "blend";
+const BLEND_MODE_BLEND: &str = "blend";
+const BLEND_MODE_ADD: &str = "add";
+const BLEND_MODE_DARKEST: &str = "darkest";
+const BLEND_MODE_LIGHTEST: &str = "lightest";
+const BLEND_MODE_DIFFERENCE: &str = "difference";
+const BLEND_MODE_EXCLUSION: &str = "exclusion";
+const BLEND_MODE_MULTIPLY: &str = "multiply";
+const BLEND_MODE_REPLACE: &str = "replace";
+const BLEND_MODE_SCREEN: &str = "screen";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Rgba {
@@ -44,6 +53,15 @@ struct Style {
     stroke_weight: f64,
     blend_mode: String,
     erasing: bool,
+    image_sampling: String,
+}
+
+#[derive(Clone, Debug)]
+struct CachedImage {
+    version: u64,
+    width: usize,
+    height: usize,
+    pixels: Vec<u8>,
 }
 
 type Matrix = (f64, f64, f64, f64, f64, f64);
@@ -59,6 +77,7 @@ struct OverlayRegion<'a> {
     pixels: &'a mut [u8],
     present_pixels: &'a mut [u32],
     erasing: bool,
+    blend_mode: &'a str,
 }
 
 impl<'a> OverlayRegion<'a> {
@@ -68,6 +87,7 @@ impl<'a> OverlayRegion<'a> {
         pixels: &'a mut [u8],
         present_pixels: &'a mut [u32],
         erasing: bool,
+        blend_mode: &'a str,
     ) -> Option<Self> {
         let (min_x, min_y, max_x, max_y) = bounds;
         let width = max_x.saturating_sub(min_x);
@@ -84,6 +104,7 @@ impl<'a> OverlayRegion<'a> {
             pixels,
             present_pixels,
             erasing,
+            blend_mode,
         })
     }
 
@@ -103,7 +124,7 @@ impl<'a> OverlayRegion<'a> {
         if self.erasing {
             dst[3] = dst[3].saturating_sub(color[3]);
         } else {
-            alpha_composite_pixel(dst, &color);
+            blend_pixel(dst, &color, self.blend_mode);
         }
         self.present_pixels[pixel_index] = rgba_to_present_pixel(dst);
     }
@@ -121,12 +142,14 @@ struct Canvas {
     closed: bool,
     pixels: Vec<u8>,
     present_pixels: Vec<u32>,
+    image_cache: HashMap<u64, CachedImage>,
     runtime: Option<InteractiveRuntime>,
     gpu: Option<gpu::GpuRenderer>,
     gpu_error: Option<String>,
     render_dirty: bool,
     offscreen_dirty: bool,
     pixels_stale: bool,
+    texture_stale: bool,
 }
 
 #[pymethods]
@@ -157,12 +180,14 @@ impl Canvas {
             closed: false,
             pixels: vec![0; physical_width * physical_height * 4],
             present_pixels: vec![0; physical_width * physical_height],
+            image_cache: HashMap::new(),
             runtime: None,
             gpu,
             gpu_error,
             render_dirty: false,
             offscreen_dirty: false,
             pixels_stale: false,
+            texture_stale: false,
         })
     }
 
@@ -190,6 +215,7 @@ impl Canvas {
         self.render_dirty = false;
         self.offscreen_dirty = false;
         self.pixels_stale = false;
+        self.texture_stale = false;
         if let Some(runtime) = self.runtime.as_mut() {
             runtime
                 .request_resize(width, height, pixel_density)
@@ -281,14 +307,21 @@ impl Canvas {
     }
 
     fn end_frame(&mut self) {
-        if self.render_dirty && self.runtime.is_none() {
+        if self.render_dirty && self.offscreen_dirty && self.runtime.is_none() {
             self.render_gpu_frame(false);
+        } else if self.runtime.is_none() {
+            self.render_dirty = false;
         }
     }
 
     fn present(&mut self) -> PyResult<()> {
-        if self.render_dirty && self.runtime.is_none() {
+        if self.render_dirty && self.offscreen_dirty && self.runtime.is_none() {
             self.render_gpu_frame(false);
+        } else if self.runtime.is_none() {
+            self.render_dirty = false;
+        }
+        if self.runtime.is_some() && self.render_dirty {
+            self.upload_stale_texture(false)?;
         }
         if let Some(runtime) = self.runtime.as_mut() {
             let window = runtime.window().ok_or_else(|| {
@@ -303,12 +336,18 @@ impl Canvas {
                 )
             })?;
             if self.render_dirty {
-                gpu.present_to_window(window, surface_width, surface_height)
+                if self.offscreen_dirty {
+                    gpu.render();
+                    gpu.begin_frame();
+                    self.offscreen_dirty = false;
+                    self.pixels_stale = true;
+                    self.texture_stale = false;
+                }
+                gpu.present_texture_to_window(window, surface_width, surface_height)
                     .map_err(|err| {
                         PyValueError::new_err(format!("Failed to present native GPU frame: {err}"))
                     })?;
                 self.render_dirty = false;
-                self.pixels_stale = true;
             }
             if runtime.should_close() {
                 self.closed = true;
@@ -337,14 +376,8 @@ impl Canvas {
             self.pixels_stale = true;
         } else {
             let packed = rgba_to_present_pixel(&color);
-            for (pixel, present_pixel) in self
-                .pixels
-                .chunks_exact_mut(4)
-                .zip(self.present_pixels.iter_mut())
-            {
-                pixel.copy_from_slice(&color);
-                *present_pixel = packed;
-            }
+            fill_rgba_buffer(&mut self.pixels, &color);
+            self.present_pixels.fill(packed);
         }
     }
 
@@ -375,20 +408,23 @@ impl Canvas {
             self.physical_width,
             self.physical_height,
         );
-        self.draw_gpu_disc(tx, ty, radius, color);
-        if self.gpu.is_some() && !style.erasing {
+        if self.can_queue_gpu_primitives(&style) {
+            self.draw_gpu_disc(tx, ty, radius, color);
             return Ok(());
         }
+        self.prepare_cpu_composite();
         let Some(mut overlay) = OverlayRegion::from_bounds(
             bounds,
             self.physical_width,
             &mut self.pixels,
             &mut self.present_pixels,
             style.erasing,
+            &style.blend_mode,
         ) else {
             return Ok(());
         };
         fill_disc(&mut overlay, tx, ty, radius, color);
+        self.upload_cpu_pixels()?;
         Ok(())
     }
 
@@ -411,20 +447,23 @@ impl Canvas {
         let p2 = self.transform_point(matrix, x2, y2);
         let radius = stroke_width(style.stroke_weight, self.pixel_density) / 2.0;
         let bounds = clipped_bounds(&[p1, p2], radius, self.physical_width, self.physical_height);
-        self.draw_gpu_segment(p1, p2, radius * 2.0, stroke);
-        if self.gpu.is_some() && !style.erasing {
+        if self.can_queue_gpu_primitives(&style) {
+            self.draw_gpu_segment(p1, p2, radius * 2.0, stroke);
             return Ok(());
         }
+        self.prepare_cpu_composite();
         let Some(mut overlay) = OverlayRegion::from_bounds(
             bounds,
             self.physical_width,
             &mut self.pixels,
             &mut self.present_pixels,
             style.erasing,
+            &style.blend_mode,
         ) else {
             return Ok(());
         };
         stroke_segment(&mut overlay, p1, p2, radius * 2.0, stroke);
+        self.upload_cpu_pixels()?;
         Ok(())
     }
 
@@ -456,16 +495,18 @@ impl Canvas {
             self.physical_width,
             self.physical_height,
         );
-        self.draw_gpu_polygon(&transformed, &style, close, self.pixel_density);
-        if self.gpu.is_some() && !style.erasing {
+        if self.can_queue_gpu_primitives(&style) {
+            self.draw_gpu_polygon(&transformed, &style, close, self.pixel_density);
             return Ok(());
         }
+        self.prepare_cpu_composite();
         let Some(mut overlay) = OverlayRegion::from_bounds(
             bounds,
             self.physical_width,
             &mut self.pixels,
             &mut self.present_pixels,
             style.erasing,
+            &style.blend_mode,
         ) else {
             return Ok(());
         };
@@ -476,6 +517,7 @@ impl Canvas {
             close,
             self.pixel_density,
         );
+        self.upload_cpu_pixels()?;
         Ok(())
     }
 
@@ -507,16 +549,25 @@ impl Canvas {
                 self.physical_width,
                 self.physical_height,
             );
-            self.draw_gpu_axis_aligned_ellipse(cx, cy, rx, ry, &parsed_style, self.pixel_density);
-            if self.gpu.is_some() && !parsed_style.erasing {
+            if self.can_queue_gpu_primitives(&parsed_style) {
+                self.draw_gpu_axis_aligned_ellipse(
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    &parsed_style,
+                    self.pixel_density,
+                );
                 return Ok(());
             }
+            self.prepare_cpu_composite();
             let Some(mut overlay) = OverlayRegion::from_bounds(
                 bounds,
                 self.physical_width,
                 &mut self.pixels,
                 &mut self.present_pixels,
                 parsed_style.erasing,
+                &parsed_style.blend_mode,
             ) else {
                 return Ok(());
             };
@@ -529,6 +580,7 @@ impl Canvas {
                 &parsed_style,
                 self.pixel_density,
             );
+            self.upload_cpu_pixels()?;
             return Ok(());
         }
 
@@ -596,34 +648,36 @@ impl Canvas {
                     self.physical_width,
                     self.physical_height,
                 );
-                if parsed_style.fill.is_some() && mode != "open" {
-                    self.draw_gpu_polygon(
-                        &transformed,
-                        &Style {
-                            stroke: None,
-                            ..parsed_style.clone()
-                        },
-                        true,
-                        self.pixel_density,
-                    );
-                }
-                if let Some(stroke) = parsed_style.stroke {
-                    self.draw_gpu_polyline(
-                        &transformed,
-                        false,
-                        stroke_width(parsed_style.stroke_weight, self.pixel_density),
-                        stroke,
-                    );
-                }
-                if self.gpu.is_some() && !parsed_style.erasing {
+                if self.can_queue_gpu_primitives(&parsed_style) {
+                    if parsed_style.fill.is_some() && mode != "open" {
+                        self.draw_gpu_polygon(
+                            &transformed,
+                            &Style {
+                                stroke: None,
+                                ..parsed_style.clone()
+                            },
+                            true,
+                            self.pixel_density,
+                        );
+                    }
+                    if let Some(stroke) = parsed_style.stroke {
+                        self.draw_gpu_polyline(
+                            &transformed,
+                            false,
+                            stroke_width(parsed_style.stroke_weight, self.pixel_density),
+                            stroke,
+                        );
+                    }
                     return Ok(());
                 }
+                self.prepare_cpu_composite();
                 let Some(mut overlay) = OverlayRegion::from_bounds(
                     bounds,
                     self.physical_width,
                     &mut self.pixels,
                     &mut self.present_pixels,
                     parsed_style.erasing,
+                    &parsed_style.blend_mode,
                 ) else {
                     return Ok(());
                 };
@@ -648,13 +702,174 @@ impl Canvas {
                         stroke,
                     );
                 }
+                self.upload_cpu_pixels()?;
                 Ok(())
             }
         }
     }
 
+    #[pyo3(signature = (image_pixels, image_width, image_height, dx, dy, dw, dh, style, matrix, source=None))]
+    fn draw_image(
+        &mut self,
+        image_pixels: Vec<u8>,
+        image_width: usize,
+        image_height: usize,
+        dx: f64,
+        dy: f64,
+        dw: f64,
+        dh: f64,
+        style: &Bound<'_, PyAny>,
+        matrix: Matrix,
+        source: Option<(i64, i64, i64, i64)>,
+    ) -> PyResult<()> {
+        self.draw_image_pixels(
+            &image_pixels,
+            image_width,
+            image_height,
+            dx,
+            dy,
+            dw,
+            dh,
+            style,
+            matrix,
+            source,
+        )
+    }
+
+    #[pyo3(signature = (image_key, image_version, image_pixels, image_width, image_height, dx, dy, dw, dh, style, matrix, source=None))]
+    fn draw_cached_image(
+        &mut self,
+        image_key: u64,
+        image_version: u64,
+        image_pixels: Option<Vec<u8>>,
+        image_width: usize,
+        image_height: usize,
+        dx: f64,
+        dy: f64,
+        dw: f64,
+        dh: f64,
+        style: &Bound<'_, PyAny>,
+        matrix: Matrix,
+        source: Option<(i64, i64, i64, i64)>,
+    ) -> PyResult<()> {
+        let needs_upload = self
+            .image_cache
+            .get(&image_key)
+            .map(|cached| {
+                cached.version != image_version
+                    || cached.width != image_width
+                    || cached.height != image_height
+            })
+            .unwrap_or(true);
+        if needs_upload {
+            let pixels = image_pixels.ok_or_else(|| {
+                PyValueError::new_err(
+                    "Image pixels are required the first time an image/version is drawn.",
+                )
+            })?;
+            validate_rgba_buffer(pixels.len(), image_width, image_height)?;
+            self.image_cache.insert(
+                image_key,
+                CachedImage {
+                    version: image_version,
+                    width: image_width,
+                    height: image_height,
+                    pixels,
+                },
+            );
+        }
+        let cached = self
+            .image_cache
+            .get(&image_key)
+            .ok_or_else(|| PyValueError::new_err("Cached image is not available."))?
+            .clone();
+        self.draw_image_pixels(
+            &cached.pixels,
+            cached.width,
+            cached.height,
+            dx,
+            dy,
+            dw,
+            dh,
+            style,
+            matrix,
+            source,
+        )
+    }
+
+    #[pyo3(signature = (source_pixels, source_width, source_height, source, destination, mode))]
+    fn blend_region(
+        &mut self,
+        source_pixels: Option<Vec<u8>>,
+        source_width: Option<usize>,
+        source_height: Option<usize>,
+        source: (i64, i64, i64, i64),
+        destination: (i64, i64, i64, i64),
+        mode: &str,
+    ) -> PyResult<()> {
+        ensure_supported_blend_mode(mode)?;
+        let (dest_x, dest_y, dest_w, dest_h) = scale_rect(destination, self.pixel_density);
+        if dest_w <= 0 || dest_h <= 0 {
+            return Ok(());
+        }
+        self.prepare_cpu_composite();
+        let source_owned;
+        let (source_data, source_canvas_width, source_canvas_height, source_rect) =
+            if let Some(pixels) = source_pixels {
+                let width = source_width.ok_or_else(|| {
+                    PyValueError::new_err("External blend source width is required.")
+                })?;
+                let height = source_height.ok_or_else(|| {
+                    PyValueError::new_err("External blend source height is required.")
+                })?;
+                validate_rgba_buffer(pixels.len(), width, height)?;
+                source_owned = pixels;
+                (&source_owned[..], width, height, source)
+            } else {
+                (
+                    &self.pixels[..],
+                    self.physical_width,
+                    self.physical_height,
+                    scale_rect(source, self.pixel_density),
+                )
+            };
+        let Some((sx, sy, sw, sh)) =
+            clipped_source_rect(source_rect, source_canvas_width, source_canvas_height)
+        else {
+            return Ok(());
+        };
+        let Some((dx, dy, dw, dh)) = clipped_dest_rect(
+            (dest_x, dest_y, dest_w, dest_h),
+            self.physical_width,
+            self.physical_height,
+        ) else {
+            return Ok(());
+        };
+        let sampled = source_data.to_vec();
+        blit_scaled_region(
+            &mut self.pixels,
+            &mut self.present_pixels,
+            self.physical_width,
+            &sampled,
+            source_canvas_width,
+            sx,
+            sy,
+            sw,
+            sh,
+            dx,
+            dy,
+            dw,
+            dh,
+            false,
+            mode,
+            "linear",
+        );
+        self.upload_cpu_pixels()?;
+        Ok(())
+    }
+
     fn load_pixels(&mut self) -> Vec<u8> {
-        if self.offscreen_dirty {
+        if self.offscreen_dirty && self.pixels_stale {
             self.render_gpu_frame(true);
         } else if self.pixels_stale {
             self.read_gpu_pixels();
@@ -673,17 +888,17 @@ impl Canvas {
         self.pixels = pixels;
         self.sync_present_pixels_from_rgba();
         if let Some(gpu) = self.gpu.as_mut() {
-            gpu.upload_pixels(&self.pixels)
-                .map_err(|err| PyValueError::new_err(format!("Failed to upload pixels: {err}")))?;
+            gpu.begin_frame();
         }
-        self.render_dirty = false;
+        self.render_dirty = true;
         self.offscreen_dirty = false;
         self.pixels_stale = false;
+        self.texture_stale = true;
         Ok(())
     }
 
     fn save(&mut self, path: &str) -> PyResult<()> {
-        if self.offscreen_dirty {
+        if self.offscreen_dirty && self.pixels_stale {
             self.render_gpu_frame(true);
         } else if self.pixels_stale {
             self.read_gpu_pixels();
@@ -701,6 +916,100 @@ impl Canvas {
 }
 
 impl Canvas {
+    #[allow(clippy::too_many_arguments)]
+    fn draw_image_pixels(
+        &mut self,
+        image_pixels: &[u8],
+        image_width: usize,
+        image_height: usize,
+        dx: f64,
+        dy: f64,
+        dw: f64,
+        dh: f64,
+        style: &Bound<'_, PyAny>,
+        matrix: Matrix,
+        source: Option<(i64, i64, i64, i64)>,
+    ) -> PyResult<()> {
+        let style = parse_style(style)?;
+        ensure_supported_style(&style)?;
+        if dw <= 0.0 || dh <= 0.0 || image_width == 0 || image_height == 0 {
+            return Ok(());
+        }
+        validate_rgba_buffer(image_pixels.len(), image_width, image_height)?;
+        let source = source.unwrap_or((0, 0, image_width as i64, image_height as i64));
+        let Some((sx, sy, sw, sh)) = clipped_source_rect(source, image_width, image_height) else {
+            return Ok(());
+        };
+        let image_to_canvas =
+            image_to_canvas_matrix(matrix, dx, dy, dw, dh, sw, sh, self.pixel_density);
+        if matrix_determinant(image_to_canvas).abs() <= f64::EPSILON {
+            return Ok(());
+        }
+        if let Some((dest_x, dest_y, dest_w, dest_h)) = axis_aligned_image_destination(
+            image_to_canvas,
+            sw,
+            sh,
+            self.physical_width,
+            self.physical_height,
+        ) {
+            self.prepare_cpu_composite();
+            blit_scaled_region(
+                &mut self.pixels,
+                &mut self.present_pixels,
+                self.physical_width,
+                image_pixels,
+                image_width,
+                sx,
+                sy,
+                sw,
+                sh,
+                dest_x,
+                dest_y,
+                dest_w,
+                dest_h,
+                style.erasing,
+                &style.blend_mode,
+                &style.image_sampling,
+            );
+            self.upload_cpu_pixels()?;
+            return Ok(());
+        }
+        let Some((dest_x, dest_y, dest_w, dest_h)) = affine_bounds(
+            image_to_canvas,
+            sw,
+            sh,
+            self.physical_width,
+            self.physical_height,
+        ) else {
+            return Ok(());
+        };
+        let canvas_to_image = matrix_inverse(image_to_canvas).ok_or_else(|| {
+            PyValueError::new_err("Image transform is not invertible for p5_canvas.")
+        })?;
+        self.prepare_cpu_composite();
+        blit_affine_region(
+            &mut self.pixels,
+            &mut self.present_pixels,
+            self.physical_width,
+            image_pixels,
+            image_width,
+            sx,
+            sy,
+            sw,
+            sh,
+            dest_x,
+            dest_y,
+            dest_w,
+            dest_h,
+            canvas_to_image,
+            style.erasing,
+            &style.blend_mode,
+            &style.image_sampling,
+        );
+        self.upload_cpu_pixels()?;
+        Ok(())
+    }
+
     fn transform_point(&self, matrix: Matrix, x: f64, y: f64) -> Point {
         let (a, b, c, d, e, f) = matrix;
         (
@@ -737,16 +1046,67 @@ impl Canvas {
         }
     }
 
+    fn can_queue_gpu_primitives(&self, style: &Style) -> bool {
+        self.gpu.is_some() && !style.erasing && style.blend_mode == BLEND_MODE_BLEND
+    }
+
+    fn prepare_cpu_composite(&mut self) {
+        if self.offscreen_dirty && self.pixels_stale {
+            self.render_gpu_frame(true);
+        } else if self.pixels_stale {
+            self.read_gpu_pixels();
+        }
+    }
+
+    fn upload_cpu_pixels(&mut self) -> PyResult<()> {
+        if let Some(gpu) = self.gpu.as_mut() {
+            gpu.begin_frame();
+        }
+        self.render_dirty = true;
+        self.offscreen_dirty = false;
+        self.pixels_stale = false;
+        self.texture_stale = true;
+        Ok(())
+    }
+
+    fn upload_stale_texture(&mut self, consume_mirrored_commands: bool) -> PyResult<()> {
+        if !self.texture_stale {
+            return Ok(());
+        }
+        if let Some(gpu) = self.gpu.as_mut() {
+            gpu.upload_pixels(&self.pixels)
+                .map_err(|err| PyValueError::new_err(format!("Failed to upload pixels: {err}")))?;
+            if consume_mirrored_commands {
+                gpu.begin_frame();
+            }
+        }
+        self.texture_stale = false;
+        if consume_mirrored_commands {
+            self.offscreen_dirty = false;
+            self.pixels_stale = false;
+        }
+        Ok(())
+    }
+
     fn render_gpu_frame(&mut self, readback: bool) {
+        if self.upload_stale_texture(false).is_err() {
+            self.render_dirty = false;
+            self.offscreen_dirty = false;
+            self.texture_stale = false;
+            return;
+        }
         let Some(gpu) = self.gpu.as_mut() else {
             self.render_dirty = false;
             self.offscreen_dirty = false;
+            self.texture_stale = false;
             return;
         };
         gpu.render();
+        gpu.begin_frame();
         self.render_dirty = false;
         self.offscreen_dirty = false;
         self.pixels_stale = true;
+        self.texture_stale = false;
         if readback {
             self.read_gpu_pixels();
         }
@@ -918,6 +1278,7 @@ impl Canvas {
             gpu.draw_triangles(vertices);
             self.render_dirty = true;
             self.offscreen_dirty = true;
+            self.pixels_stale = true;
         }
     }
 }
@@ -1049,12 +1410,18 @@ fn parse_style(style: &Bound<'_, PyAny>) -> PyResult<Style> {
         .get_item("erasing")?
         .ok_or_else(|| PyValueError::new_err("Style payload missing 'erasing'."))?
         .extract::<bool>()?;
+    let image_sampling = dict
+        .get_item("image_sampling")?
+        .map(|value| value.extract::<String>())
+        .transpose()?
+        .unwrap_or_else(|| "linear".to_string());
     Ok(Style {
         fill,
         stroke,
         stroke_weight,
         blend_mode,
         erasing,
+        image_sampling,
     })
 }
 
@@ -1075,17 +1442,347 @@ fn ensure_supported_style(style: &Style) -> PyResult<()> {
     if style.stroke_weight < 0.0 || !style.stroke_weight.is_finite() {
         return Err(PyValueError::new_err("stroke_weight cannot be negative."));
     }
-    if style.blend_mode != SUPPORTED_BLEND_MODE {
-        return Err(PyValueError::new_err(format!(
-            "Unsupported blend mode {:?}; only {:?} is implemented by p5_canvas.",
-            style.blend_mode, SUPPORTED_BLEND_MODE
-        )));
+    ensure_supported_blend_mode(&style.blend_mode)
+}
+
+fn ensure_supported_blend_mode(mode: &str) -> PyResult<()> {
+    if is_supported_blend_mode(mode) {
+        Ok(())
+    } else {
+        Err(PyValueError::new_err(format!(
+            "Unsupported blend mode {mode:?} for p5_canvas."
+        )))
     }
-    Ok(())
+}
+
+fn is_supported_blend_mode(mode: &str) -> bool {
+    matches!(
+        mode,
+        BLEND_MODE_BLEND
+            | BLEND_MODE_REPLACE
+            | BLEND_MODE_ADD
+            | BLEND_MODE_DARKEST
+            | BLEND_MODE_LIGHTEST
+            | BLEND_MODE_DIFFERENCE
+            | BLEND_MODE_EXCLUSION
+            | BLEND_MODE_MULTIPLY
+            | BLEND_MODE_SCREEN
+    )
 }
 
 fn stroke_width(stroke_weight: f64, pixel_density: f64) -> f64 {
     (stroke_weight * pixel_density).round().max(1.0)
+}
+
+fn validate_rgba_buffer(length: usize, width: usize, height: usize) -> PyResult<()> {
+    let expected = width
+        .checked_mul(height)
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| PyValueError::new_err("Image dimensions are too large."))?;
+    if length == expected {
+        Ok(())
+    } else {
+        Err(PyValueError::new_err(format!(
+            "RGBA buffer length must be {expected}, got {length}."
+        )))
+    }
+}
+
+fn scale_rect(rect: (i64, i64, i64, i64), pixel_density: f64) -> (i64, i64, i64, i64) {
+    (
+        (rect.0 as f64 * pixel_density).round() as i64,
+        (rect.1 as f64 * pixel_density).round() as i64,
+        (rect.2 as f64 * pixel_density).round() as i64,
+        (rect.3 as f64 * pixel_density).round() as i64,
+    )
+}
+
+fn image_to_canvas_matrix(
+    matrix: Matrix,
+    dx: f64,
+    dy: f64,
+    dw: f64,
+    dh: f64,
+    sw: usize,
+    sh: usize,
+    pixel_density: f64,
+) -> Matrix {
+    let physical = (
+        matrix.0 * pixel_density,
+        matrix.1 * pixel_density,
+        matrix.2 * pixel_density,
+        matrix.3 * pixel_density,
+        matrix.4 * pixel_density,
+        matrix.5 * pixel_density,
+    );
+    matrix_multiply(
+        matrix_multiply(physical, (1.0, 0.0, 0.0, 1.0, dx, dy)),
+        (dw / sw as f64, 0.0, 0.0, dh / sh as f64, 0.0, 0.0),
+    )
+}
+
+fn matrix_multiply(left: Matrix, right: Matrix) -> Matrix {
+    (
+        left.0 * right.0 + left.2 * right.1,
+        left.1 * right.0 + left.3 * right.1,
+        left.0 * right.2 + left.2 * right.3,
+        left.1 * right.2 + left.3 * right.3,
+        left.0 * right.4 + left.2 * right.5 + left.4,
+        left.1 * right.4 + left.3 * right.5 + left.5,
+    )
+}
+
+fn matrix_transform_point(matrix: Matrix, x: f64, y: f64) -> Point {
+    (
+        matrix.0 * x + matrix.2 * y + matrix.4,
+        matrix.1 * x + matrix.3 * y + matrix.5,
+    )
+}
+
+fn matrix_determinant(matrix: Matrix) -> f64 {
+    matrix.0 * matrix.3 - matrix.1 * matrix.2
+}
+
+fn matrix_inverse(matrix: Matrix) -> Option<Matrix> {
+    let determinant = matrix_determinant(matrix);
+    if determinant.abs() <= f64::EPSILON {
+        return None;
+    }
+    let inv_det = 1.0 / determinant;
+    let a = matrix.3 * inv_det;
+    let b = -matrix.1 * inv_det;
+    let c = -matrix.2 * inv_det;
+    let d = matrix.0 * inv_det;
+    let e = -(a * matrix.4 + c * matrix.5);
+    let f = -(b * matrix.4 + d * matrix.5);
+    Some((a, b, c, d, e, f))
+}
+
+fn affine_bounds(
+    matrix: Matrix,
+    width: usize,
+    height: usize,
+    canvas_width: usize,
+    canvas_height: usize,
+) -> Option<(usize, usize, usize, usize)> {
+    let corners = [
+        matrix_transform_point(matrix, 0.0, 0.0),
+        matrix_transform_point(matrix, width as f64, 0.0),
+        matrix_transform_point(matrix, width as f64, height as f64),
+        matrix_transform_point(matrix, 0.0, height as f64),
+    ];
+    let min_x = corners
+        .iter()
+        .map(|point| point.0)
+        .fold(f64::INFINITY, f64::min)
+        .floor()
+        .max(0.0) as usize;
+    let min_y = corners
+        .iter()
+        .map(|point| point.1)
+        .fold(f64::INFINITY, f64::min)
+        .floor()
+        .max(0.0) as usize;
+    let max_x = corners
+        .iter()
+        .map(|point| point.0)
+        .fold(f64::NEG_INFINITY, f64::max)
+        .ceil()
+        .min(canvas_width as f64)
+        .max(0.0) as usize;
+    let max_y = corners
+        .iter()
+        .map(|point| point.1)
+        .fold(f64::NEG_INFINITY, f64::max)
+        .ceil()
+        .min(canvas_height as f64)
+        .max(0.0) as usize;
+    if max_x <= min_x || max_y <= min_y {
+        None
+    } else {
+        Some((min_x, min_y, max_x - min_x, max_y - min_y))
+    }
+}
+
+fn axis_aligned_image_destination(
+    matrix: Matrix,
+    width: usize,
+    height: usize,
+    canvas_width: usize,
+    canvas_height: usize,
+) -> Option<(usize, usize, usize, usize)> {
+    if matrix.1.abs() > f64::EPSILON || matrix.2.abs() > f64::EPSILON {
+        return None;
+    }
+    if matrix.0 <= 0.0 || matrix.3 <= 0.0 {
+        return None;
+    }
+    let left = matrix.4.round();
+    let top = matrix.5.round();
+    let dest_width = (matrix.0 * width as f64).round();
+    let dest_height = (matrix.3 * height as f64).round();
+    if left < 0.0 || top < 0.0 || dest_width <= 0.0 || dest_height <= 0.0 {
+        return None;
+    }
+    let right = left + dest_width;
+    let bottom = top + dest_height;
+    if right > canvas_width as f64 || bottom > canvas_height as f64 {
+        return None;
+    }
+    Some((
+        left as usize,
+        top as usize,
+        dest_width as usize,
+        dest_height as usize,
+    ))
+}
+
+fn clipped_source_rect(
+    rect: (i64, i64, i64, i64),
+    width: usize,
+    height: usize,
+) -> Option<(usize, usize, usize, usize)> {
+    let (x, y, w, h) = rect;
+    if w <= 0 || h <= 0 {
+        return None;
+    }
+    let left = x.clamp(0, width as i64) as usize;
+    let top = y.clamp(0, height as i64) as usize;
+    let right = (x + w).clamp(0, width as i64) as usize;
+    let bottom = (y + h).clamp(0, height as i64) as usize;
+    if right <= left || bottom <= top {
+        None
+    } else {
+        Some((left, top, right - left, bottom - top))
+    }
+}
+
+fn clipped_dest_rect(
+    rect: (i64, i64, i64, i64),
+    width: usize,
+    height: usize,
+) -> Option<(usize, usize, usize, usize)> {
+    clipped_source_rect(rect, width, height)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn blit_scaled_region(
+    dst: &mut [u8],
+    present_pixels: &mut [u32],
+    dst_width: usize,
+    src: &[u8],
+    src_width: usize,
+    sx: usize,
+    sy: usize,
+    sw: usize,
+    sh: usize,
+    dx: usize,
+    dy: usize,
+    dw: usize,
+    dh: usize,
+    erasing: bool,
+    blend_mode: &str,
+    sampling: &str,
+) {
+    if sw == 0 || sh == 0 || dw == 0 || dh == 0 {
+        return;
+    }
+    let nearest = sampling == "nearest";
+    let default_blend = blend_mode == BLEND_MODE_BLEND;
+    for out_y in 0..dh {
+        let src_y = if nearest {
+            sy + (out_y * sh / dh).min(sh - 1)
+        } else {
+            sy + (((out_y as f64 + 0.5) * sh as f64 / dh as f64).floor() as usize).min(sh - 1)
+        };
+        for out_x in 0..dw {
+            let src_x = if nearest {
+                sx + (out_x * sw / dw).min(sw - 1)
+            } else {
+                sx + (((out_x as f64 + 0.5) * sw as f64 / dw as f64).floor() as usize).min(sw - 1)
+            };
+            let src_offset = (src_y * src_width + src_x) * 4;
+            let src_pixel = &src[src_offset..src_offset + 4];
+            if src_pixel[3] == 0 {
+                continue;
+            }
+            let dst_pixel_index = (dy + out_y) * dst_width + dx + out_x;
+            let dst_offset = dst_pixel_index * 4;
+            let dst_pixel = &mut dst[dst_offset..dst_offset + 4];
+            if erasing {
+                dst_pixel[3] = dst_pixel[3].saturating_sub(src_pixel[3]);
+            } else if default_blend && src_pixel[3] == 255 {
+                dst_pixel.copy_from_slice(src_pixel);
+            } else {
+                blend_pixel(dst_pixel, src_pixel, blend_mode);
+            }
+            present_pixels[dst_pixel_index] = rgba_to_present_pixel(dst_pixel);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn blit_affine_region(
+    dst: &mut [u8],
+    present_pixels: &mut [u32],
+    dst_width: usize,
+    src: &[u8],
+    src_width: usize,
+    sx: usize,
+    sy: usize,
+    sw: usize,
+    sh: usize,
+    dx: usize,
+    dy: usize,
+    dw: usize,
+    dh: usize,
+    canvas_to_image: Matrix,
+    erasing: bool,
+    blend_mode: &str,
+    sampling: &str,
+) {
+    if sw == 0 || sh == 0 || dw == 0 || dh == 0 {
+        return;
+    }
+    let _sampling = sampling;
+    let default_blend = blend_mode == BLEND_MODE_BLEND;
+    let (a, b, c, d, e, f) = canvas_to_image;
+    for out_y in 0..dh {
+        let canvas_y = dy + out_y;
+        let sample_y = canvas_y as f64 + 0.5;
+        let mut local_x = a * (dx as f64 + 0.5) + c * sample_y + e;
+        let mut local_y = b * (dx as f64 + 0.5) + d * sample_y + f;
+        for out_x in 0..dw {
+            let canvas_x = dx + out_x;
+            if local_x < 0.0 || local_y < 0.0 || local_x >= sw as f64 || local_y >= sh as f64 {
+                local_x += a;
+                local_y += b;
+                continue;
+            }
+            let sample_x = local_x.floor().clamp(0.0, (sw - 1) as f64) as usize;
+            let sample_y = local_y.floor().clamp(0.0, (sh - 1) as f64) as usize;
+            let src_offset = ((sy + sample_y) * src_width + sx + sample_x) * 4;
+            let src_pixel = &src[src_offset..src_offset + 4];
+            if src_pixel[3] == 0 {
+                local_x += a;
+                local_y += b;
+                continue;
+            }
+            let dst_pixel_index = canvas_y * dst_width + canvas_x;
+            let dst_offset = dst_pixel_index * 4;
+            let dst_pixel = &mut dst[dst_offset..dst_offset + 4];
+            if erasing {
+                dst_pixel[3] = dst_pixel[3].saturating_sub(src_pixel[3]);
+            } else if default_blend && src_pixel[3] == 255 {
+                dst_pixel.copy_from_slice(src_pixel);
+            } else {
+                blend_pixel(dst_pixel, src_pixel, blend_mode);
+            }
+            present_pixels[dst_pixel_index] = rgba_to_present_pixel(dst_pixel);
+            local_x += a;
+            local_y += b;
+        }
+    }
 }
 
 fn draw_polygon_overlay(
@@ -1405,6 +2102,66 @@ fn alpha_composite_pixel(dst: &mut [u8], src: &[u8]) {
     dst[3] = out_alpha as u8;
 }
 
+fn blend_pixel(dst: &mut [u8], src: &[u8], mode: &str) {
+    if mode == BLEND_MODE_BLEND {
+        alpha_composite_pixel(dst, src);
+        return;
+    }
+    if mode == BLEND_MODE_REPLACE {
+        alpha_composite_pixel(dst, src);
+        return;
+    }
+    let alpha = src[3] as u32;
+    if alpha == 0 {
+        return;
+    }
+    let base = [dst[0], dst[1], dst[2]];
+    let blend = [
+        blend_channel(base[0], src[0], mode),
+        blend_channel(base[1], src[1], mode),
+        blend_channel(base[2], src[2], mode),
+    ];
+    let inv_alpha = 255 - alpha;
+    for channel in 0..3 {
+        dst[channel] =
+            ((blend[channel] as u32 * alpha + base[channel] as u32 * inv_alpha + 127) / 255) as u8;
+    }
+}
+
+fn blend_channel(base: u8, src: u8, mode: &str) -> u8 {
+    match mode {
+        BLEND_MODE_ADD => base.saturating_add(src),
+        BLEND_MODE_DARKEST => base.min(src),
+        BLEND_MODE_LIGHTEST => base.max(src),
+        BLEND_MODE_DIFFERENCE => base.abs_diff(src),
+        BLEND_MODE_EXCLUSION => {
+            let base = base as u32;
+            let src = src as u32;
+            (base + src - (2 * base * src + 127) / 255).min(255) as u8
+        }
+        BLEND_MODE_MULTIPLY => ((base as u32 * src as u32 + 127) / 255) as u8,
+        BLEND_MODE_SCREEN => {
+            let inv = (255 - base as u32) * (255 - src as u32);
+            (255 - (inv + 127) / 255) as u8
+        }
+        _ => src,
+    }
+}
+
+fn fill_rgba_buffer(pixels: &mut [u8], color: &[u8; 4]) {
+    if pixels.is_empty() {
+        return;
+    }
+    let first_len = pixels.len().min(4);
+    pixels[..first_len].copy_from_slice(&color[..first_len]);
+    let mut filled = first_len;
+    while filled < pixels.len() {
+        let copy_len = filled.min(pixels.len() - filled);
+        pixels.copy_within(0..copy_len, filled);
+        filled += copy_len;
+    }
+}
+
 fn rgba_to_present_pixel(rgba: &[u8]) -> u32 {
     ((rgba[3] as u32) << 24) | ((rgba[0] as u32) << 16) | ((rgba[1] as u32) << 8) | rgba[2] as u32
 }
@@ -1505,8 +2262,9 @@ mod tests {
                 }),
                 stroke: None,
                 stroke_weight: 1.0,
-                blend_mode: SUPPORTED_BLEND_MODE.to_string(),
+                blend_mode: BLEND_MODE_BLEND.to_string(),
                 erasing: false,
+                image_sampling: "linear".to_string(),
             },
             true,
             1.0,
@@ -1518,6 +2276,49 @@ mod tests {
         assert!(pixels
             .chunks_exact(4)
             .any(|rgba| rgba == [255, 255, 255, 255]));
+    }
+
+    #[test]
+    fn gpu_overlay_after_cpu_upload_does_not_replay_previous_clear() {
+        let mut canvas = Canvas::new(8, 8, 1.0, SUPPORTED_MODE, SUPPORTED_RENDERER).unwrap();
+        if !canvas.gpu_available() {
+            return;
+        }
+
+        canvas.begin_frame();
+        canvas.background((255, 255, 255, 255));
+        canvas.render_gpu_frame(true);
+
+        let preserved_pixel_offset = (7 * canvas.physical_width + 7) * 4;
+        canvas.pixels[preserved_pixel_offset..preserved_pixel_offset + 4]
+            .copy_from_slice(&[255, 0, 0, 255]);
+        canvas.upload_cpu_pixels().unwrap();
+        canvas.draw_gpu_polygon(
+            &[(1.0, 1.0), (3.0, 1.0), (1.0, 3.0)],
+            &Style {
+                fill: Some(Rgba {
+                    r: 0,
+                    g: 0,
+                    b: 255,
+                    a: 255,
+                }),
+                stroke: None,
+                stroke_weight: 1.0,
+                blend_mode: BLEND_MODE_BLEND.to_string(),
+                erasing: false,
+                image_sampling: "linear".to_string(),
+            },
+            true,
+            1.0,
+        );
+        canvas.end_frame();
+
+        let pixels = canvas.load_pixels();
+        assert_eq!(
+            &pixels[preserved_pixel_offset..preserved_pixel_offset + 4],
+            &[255, 0, 0, 255]
+        );
+        assert!(pixels.chunks_exact(4).any(|rgba| rgba == [0, 0, 255, 255]));
     }
 
     #[test]

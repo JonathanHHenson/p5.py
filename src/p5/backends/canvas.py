@@ -85,8 +85,8 @@ class CanvasBackend:
     capabilities = BackendCapabilities(
         interactive=False,
         headless=True,
-        text=False,
-        images=False,
+        text=True,
+        images=True,
         pixels=True,
         pixel_readback=True,
         pixel_update=True,
@@ -96,7 +96,19 @@ class CanvasBackend:
         touch=False,
         paths=True,
         transforms=True,
-        blend_modes=frozenset({c.BLEND}),
+        blend_modes=frozenset(
+            {
+                c.BLEND,
+                c.REPLACE,
+                c.ADD,
+                c.DARKEST,
+                c.LIGHTEST,
+                c.DIFFERENCE,
+                c.EXCLUSION,
+                c.MULTIPLY,
+                c.SCREEN,
+            }
+        ),
         three_d=False,
         shaders=False,
         sound=False,

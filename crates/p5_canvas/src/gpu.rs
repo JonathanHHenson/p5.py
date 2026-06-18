@@ -39,6 +39,48 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
+const TEXTURE_SHADER: &str = r#"
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+    var positions = array<vec2<f32>, 6>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(1.0, 1.0),
+    );
+    var uvs = array<vec2<f32>, 6>(
+        vec2<f32>(0.0, 1.0),
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(1.0, 0.0),
+    );
+    var output: VertexOutput;
+    output.position = vec4<f32>(positions[vertex_index], 0.0, 1.0);
+    output.uv = uvs[vertex_index];
+    return output;
+}
+
+@group(0) @binding(0)
+var offscreen_texture: texture_2d<f32>;
+
+@group(0) @binding(1)
+var offscreen_sampler: sampler;
+
+@fragment
+fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    return textureSample(offscreen_texture, offscreen_sampler, input.uv);
+}
+"#;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 struct Vertex {
@@ -87,8 +129,9 @@ pub struct GpuRenderer {
     texture_view: wgpu::TextureView,
     texture_size: wgpu::Extent3d,
     pipeline: wgpu::RenderPipeline,
-    surface_pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
-    bind_group_layout: wgpu::BindGroupLayout,
+    texture_bind_group_layout: wgpu::BindGroupLayout,
+    texture_surface_pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
+    texture_sampler: wgpu::Sampler,
     viewport_buffer: wgpu::Buffer,
     viewport_bind_group: wgpu::BindGroup,
     clear_color: GpuColor,
@@ -130,6 +173,17 @@ impl GpuRenderer {
             mapped_at_creation: false,
         });
         let bind_group_layout = viewport_bind_group_layout(&device);
+        let texture_bind_group_layout = texture_bind_group_layout(&device);
+        let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("p5_canvas offscreen texture sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..wgpu::SamplerDescriptor::default()
+        });
         let viewport_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("p5_canvas viewport bind group"),
             layout: &bind_group_layout,
@@ -153,6 +207,7 @@ impl GpuRenderer {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
@@ -167,8 +222,9 @@ impl GpuRenderer {
             texture_view,
             texture_size,
             pipeline,
-            surface_pipeline: None,
-            bind_group_layout,
+            texture_bind_group_layout,
+            texture_surface_pipeline: None,
+            texture_sampler,
             viewport_buffer,
             viewport_bind_group,
             clear_color: GpuColor {
@@ -201,6 +257,7 @@ impl GpuRenderer {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
@@ -255,7 +312,7 @@ impl GpuRenderer {
     }
 
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
-    pub fn present_to_window(
+    pub fn present_texture_to_window(
         &mut self,
         window: Arc<Window>,
         width: u32,
@@ -286,15 +343,44 @@ impl GpuRenderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         let format = self.surface.as_ref().expect("surface exists").config.format;
-        self.write_viewport(width, height);
+        let pipeline = self.texture_surface_pipeline(format);
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("p5_canvas offscreen texture bind group"),
+            layout: &self.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&self.texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.texture_sampler),
+                },
+            ],
+        });
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("p5_canvas surface render encoder"),
+                label: Some("p5_canvas texture present encoder"),
             });
         {
-            let pipeline = self.surface_pipeline(format);
-            self.encode_commands(&mut encoder, &view, &pipeline);
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("p5_canvas texture present pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &bind_group, &[]);
+            pass.draw(0..6, 0..1);
         }
         window.pre_present_notify();
         self.queue.submit([encoder.finish()]);
@@ -487,12 +573,11 @@ impl GpuRenderer {
                 .create_surface(Arc::clone(&window))
                 .map_err(|err| format!("Failed to create GPU window surface: {err}"))?;
             let capabilities = surface.get_capabilities(&self.adapter);
-            let config = surface_config(&capabilities, width.max(1), height.max(1)).ok_or_else(
-                || {
+            let config =
+                surface_config(&capabilities, width.max(1), height.max(1)).ok_or_else(|| {
                     "The selected GPU adapter does not support the native window surface."
                         .to_string()
-                },
-            )?;
+                })?;
             surface.configure(&self.device, &config);
             self.surface = Some(GpuSurface {
                 window_id: window.id(),
@@ -525,21 +610,21 @@ impl GpuRenderer {
     }
 
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
-    fn surface_pipeline(&mut self, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
+    fn texture_surface_pipeline(&mut self, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
         let needs_pipeline = self
-            .surface_pipeline
+            .texture_surface_pipeline
             .as_ref()
             .map(|(existing_format, _)| *existing_format != format)
             .unwrap_or(true);
         if needs_pipeline {
-            self.surface_pipeline = Some((
+            self.texture_surface_pipeline = Some((
                 format,
-                create_pipeline(&self.device, &self.bind_group_layout, format),
+                create_texture_pipeline(&self.device, &self.texture_bind_group_layout, format),
             ));
         }
-        self.surface_pipeline
+        self.texture_surface_pipeline
             .as_ref()
-            .expect("surface pipeline exists")
+            .expect("texture surface pipeline exists")
             .1
             .clone()
     }
@@ -577,6 +662,30 @@ fn viewport_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             },
             count: None,
         }],
+    })
+}
+
+fn texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("p5_canvas texture bind group layout"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+        ],
     })
 }
 
@@ -636,6 +745,50 @@ fn create_pipeline(
             polygon_mode: wgpu::PolygonMode::Fill,
             unclipped_depth: false,
             conservative: false,
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+        cache: None,
+    })
+}
+
+fn create_texture_pipeline(
+    device: &wgpu::Device,
+    bind_group_layout: &wgpu::BindGroupLayout,
+    format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("p5_canvas texture present shader"),
+        source: wgpu::ShaderSource::Wgsl(TEXTURE_SHADER.into()),
+    });
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("p5_canvas texture present pipeline layout"),
+        bind_group_layouts: &[bind_group_layout],
+        push_constant_ranges: &[],
+    });
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("p5_canvas texture present pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            ..wgpu::PrimitiveState::default()
         },
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),

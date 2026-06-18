@@ -68,6 +68,43 @@ class Canvas:
         style: dict[str, Any],
         matrix: tuple[float, float, float, float, float, float],
     ) -> None: ...
+    def draw_image(
+        self,
+        image_pixels: bytes,
+        image_width: int,
+        image_height: int,
+        dx: float,
+        dy: float,
+        dw: float,
+        dh: float,
+        style: dict[str, Any],
+        matrix: tuple[float, float, float, float, float, float],
+        source: tuple[int, int, int, int] | None = None,
+    ) -> None: ...
+    def draw_cached_image(
+        self,
+        image_key: int,
+        image_version: int,
+        image_pixels: bytes | None,
+        image_width: int,
+        image_height: int,
+        dx: float,
+        dy: float,
+        dw: float,
+        dh: float,
+        style: dict[str, Any],
+        matrix: tuple[float, float, float, float, float, float],
+        source: tuple[int, int, int, int] | None = None,
+    ) -> None: ...
+    def blend_region(
+        self,
+        source_pixels: bytes | None,
+        source_width: int | None,
+        source_height: int | None,
+        source: tuple[int, int, int, int],
+        destination: tuple[int, int, int, int],
+        mode: str,
+    ) -> None: ...
     def load_pixels(self) -> Sequence[int]: ...
     def update_pixels(self, pixels: bytes) -> None: ...
     def save(self, path: str) -> None: ...

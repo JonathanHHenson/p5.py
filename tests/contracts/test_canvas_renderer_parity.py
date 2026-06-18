@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from p5 import constants as c
+from p5.assets.image import Image
 from p5.backends.canvas_renderer import CanvasRenderer
 from p5.backends.pillow import PillowRenderer
 from p5.core.color import Color
@@ -83,3 +86,78 @@ def test_canvas_renderer_background_clear_and_invalid_arguments() -> None:
         # The Rust extension validates its own constructor arguments before the
         # Python backend maps them for user-facing calls.
         require_canvas_extension().Canvas(0, 1, 1.0, "headless", c.P2D)
+
+
+def test_canvas_renderer_draws_images_and_blend_regions() -> None:
+    from PIL import Image as PILImage
+
+    canvas = CanvasRenderer(require_canvas_extension())
+    pillow = PillowRenderer()
+    canvas.resize(8, 4)
+    pillow.resize(8, 4)
+    source = PILImage.new("RGBA", (2, 1), (0, 255, 0, 255))
+    source.putpixel((0, 0), (255, 0, 0, 255))
+    image = Image(source)
+    style = StyleState(fill_color=None, stroke_color=None, image_sampling=c.NEAREST)
+    transform = Matrix2D.identity()
+
+    for renderer, blend_source in ((canvas, image), (pillow, image.pillow)):
+        renderer.background(Color(10, 20, 30, 255))
+        renderer.draw_image(image, 0, 0, 4, 2, style, transform)
+        renderer.blend_region(blend_source, (0, 0, 1, 1), (6, 0, 1, 1), c.ADD)
+
+    assert canvas.load_pixels() == pillow.load_pixels()
+
+
+def test_canvas_renderer_draws_transformed_images() -> None:
+    from PIL import Image as PILImage
+
+    canvas = CanvasRenderer(require_canvas_extension())
+    pillow = PillowRenderer()
+    canvas.resize(20, 20)
+    pillow.resize(20, 20)
+    image = Image(PILImage.new("RGBA", (4, 2), (255, 0, 0, 255)))
+    style = StyleState(fill_color=None, stroke_color=None, image_sampling=c.NEAREST)
+    transform = Matrix2D.translation(10, 10).multiply(Matrix2D.rotation(math.pi / 2))
+
+    for renderer in (canvas, pillow):
+        renderer.clear()
+        renderer.draw_image(image, -2, -1, 4, 2, style, transform)
+
+    assert canvas.load_pixels() == pillow.load_pixels()
+
+
+def test_canvas_renderer_supports_blend_modes_and_erase() -> None:
+    canvas = CanvasRenderer(require_canvas_extension())
+    canvas.resize(4, 1)
+    transform = Matrix2D.identity()
+    base_style = StyleState(fill_color=Color(100, 100, 100, 255), stroke_color=None)
+    multiply_style = StyleState(
+        fill_color=Color(128, 255, 255, 255),
+        stroke_color=None,
+        blend_mode=c.MULTIPLY,
+    )
+    erase_style = StyleState(fill_color=Color(255, 255, 255, 255), stroke_color=None, erasing=True)
+
+    canvas.polygon([(0, 0), (4, 0), (4, 1), (0, 1)], base_style, transform, close=True)
+    canvas.polygon([(0, 0), (1, 0), (1, 1), (0, 1)], multiply_style, transform, close=True)
+    canvas.polygon([(3, 0), (4, 0), (4, 1), (3, 1)], erase_style, transform, close=True)
+
+    pixels = canvas.load_pixels()
+    assert pixels[0:4] == [50, 100, 100, 255]
+    assert pixels[12:16] == [100, 100, 100, 0]
+
+
+def test_canvas_renderer_text_uses_pillow_metrics_and_rgba_upload() -> None:
+    canvas = CanvasRenderer(require_canvas_extension())
+    pillow = PillowRenderer()
+    canvas.resize(48, 24)
+    pillow.resize(48, 24)
+    style = StyleState(fill_color=Color(255, 255, 255, 255), stroke_color=None)
+
+    assert canvas.text_width("Hi", style) == pytest.approx(pillow.text_width("Hi", style))
+    for renderer in (canvas, pillow):
+        renderer.clear()
+        renderer.text("Hi", 2, 14, style, Matrix2D.identity())
+
+    assert canvas.load_pixels() == pillow.load_pixels()
