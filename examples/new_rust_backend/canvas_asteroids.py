@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -80,12 +81,18 @@ class AsteroidsDemo:
         self.game_over = False
         self.last_key = "none"
 
+        # FPS logging state
+        self._fps_frames: int = 0
+        self._fps_last_print: float = time.monotonic()
+
     def setup(self) -> None:
         p5.create_canvas(CANVAS_WIDTH, CANVAS_HEIGHT)
         p5.frame_rate(60)
         self._reset_game()
 
     def draw(self) -> None:
+        self._update_fps()
+
         if not self.game_over:
             self._update_ship()
             self._update_shots()
@@ -129,6 +136,16 @@ class AsteroidsDemo:
         self.invulnerable = INVULNERABLE_FRAMES
         self.game_over = False
         self._spawn_wave()
+
+    def _update_fps(self) -> None:
+        self._fps_frames += 1
+        now = time.monotonic()
+        elapsed = now - self._fps_last_print
+        if elapsed >= 1.0:
+            fps = self._fps_frames / elapsed
+            print(f"[FPS] {int(fps)} ({self._fps_frames} frames in {elapsed:.3f}s)")
+            self._fps_frames = 0
+            self._fps_last_print = now
 
     def _spawn_wave(self) -> None:
         self.shots.clear()
