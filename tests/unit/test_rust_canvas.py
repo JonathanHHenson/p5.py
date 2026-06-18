@@ -138,6 +138,12 @@ class FakeCanvas:
     def draw_image(self, *args: object) -> None:
         self.calls.append(("draw_image", *args))
 
+    def draw_canvas_image(self, *args: object) -> None:
+        self.calls.append(("draw_canvas_image", *args))
+
+    def text(self, *args: object) -> None:
+        self.calls.append(("text", *args))
+
     def load_pixels(self) -> bytes:
         return self.pixels
 
@@ -340,7 +346,12 @@ def test_canvas_renderer_converts_style_color_and_transform_payloads() -> None:
     call = canvas.calls[-1]
     assert call[0] == "polygon"
     assert call[1] == [(1, 2), (3, 4)]
-    assert call[2] == {
+    style_payload = call[2]
+    assert isinstance(style_payload, dict)
+    assert {
+        key: style_payload[key]
+        for key in ("fill", "stroke", "stroke_weight", "blend_mode", "erasing", "image_sampling")
+    } == {
         "fill": (255, 0, 0, 128),
         "stroke": (0, 0, 255, 255),
         "stroke_weight": 3.0,
@@ -348,6 +359,9 @@ def test_canvas_renderer_converts_style_color_and_transform_payloads() -> None:
         "erasing": False,
         "image_sampling": c.LINEAR,
     }
+    assert style_payload["text_size"] == 12.0
+    assert style_payload["text_align_x"] == c.LEFT
+    assert style_payload["text_align_y"] == c.BASELINE
     assert call[3] == (1, 2, 3, 4, 5, 6)
     assert call[4] is False
 
@@ -415,7 +429,7 @@ def test_canvas_renderer_maps_rust_value_errors() -> None:
         renderer.update_pixels([1, 2, 3])
 
 
-def test_canvas_renderer_text_metrics_use_pillow_path() -> None:
+def test_canvas_renderer_text_metrics_use_pillow_and_text_draw_command() -> None:
     renderer = CanvasRenderer(FakeCanvasModule())
     renderer.resize(20, 20)
     style = StyleState(fill_color=Color(255, 255, 255, 255), stroke_color=None)
@@ -425,7 +439,7 @@ def test_canvas_renderer_text_metrics_use_pillow_path() -> None:
     assert renderer.text_descent(style) >= 0
     renderer.text("hello", 0, 12, style, Matrix2D.identity())
     assert renderer._canvas is not None
-    assert renderer._canvas.calls[-1][0] == "draw_image"
+    assert renderer._canvas.calls[-1][0] == "text"
 
 
 def test_canvas_backend_headless_run_defaults_to_requested_frame_count(

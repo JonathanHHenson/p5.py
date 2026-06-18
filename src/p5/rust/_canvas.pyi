@@ -4,6 +4,20 @@ from typing import Any
 def health_check() -> str: ...
 def gpu_available() -> bool: ...
 
+class P5Image:
+    @staticmethod
+    def from_file(path: str) -> P5Image: ...
+    @staticmethod
+    def from_rgba_bytes(width: int, height: int, pixels: bytes) -> P5Image: ...
+    @property
+    def width(self) -> int: ...
+    @property
+    def height(self) -> int: ...
+    @property
+    def version(self) -> int: ...
+    def save(self, path: str) -> None: ...
+    def to_rgba_bytes(self) -> bytes: ...
+
 class Canvas:
     def __init__(
         self,
@@ -95,6 +109,25 @@ class Canvas:
         style: dict[str, Any],
         matrix: tuple[float, float, float, float, float, float],
         source: tuple[int, int, int, int] | None = None,
+    ) -> None: ...
+    def draw_canvas_image(
+        self,
+        image: P5Image,
+        dx: float,
+        dy: float,
+        dw: float,
+        dh: float,
+        style: dict[str, Any],
+        matrix: tuple[float, float, float, float, float, float],
+        source: tuple[int, int, int, int] | None = None,
+    ) -> None: ...
+    def text(
+        self,
+        value: str,
+        x: float,
+        y: float,
+        style: dict[str, Any],
+        matrix: tuple[float, float, float, float, float, float],
     ) -> None: ...
     def blend_region(
         self,

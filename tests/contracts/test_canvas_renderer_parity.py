@@ -148,7 +148,7 @@ def test_canvas_renderer_supports_blend_modes_and_erase() -> None:
     assert pixels[12:16] == [100, 100, 100, 0]
 
 
-def test_canvas_renderer_text_uses_pillow_metrics_and_rgba_upload() -> None:
+def test_canvas_renderer_text_uses_pillow_metrics_and_rust_draw_command() -> None:
     canvas = CanvasRenderer(require_canvas_extension())
     pillow = PillowRenderer()
     canvas.resize(48, 24)
@@ -156,8 +156,9 @@ def test_canvas_renderer_text_uses_pillow_metrics_and_rgba_upload() -> None:
     style = StyleState(fill_color=Color(255, 255, 255, 255), stroke_color=None)
 
     assert canvas.text_width("Hi", style) == pytest.approx(pillow.text_width("Hi", style))
-    for renderer in (canvas, pillow):
-        renderer.clear()
-        renderer.text("Hi", 2, 14, style, Matrix2D.identity())
+    canvas.clear()
+    canvas.text("Hi", 2, 14, style, Matrix2D.identity())
 
-    assert canvas.load_pixels() == pillow.load_pixels()
+    pixels = canvas.load_pixels()
+    assert any(alpha > 0 for alpha in pixels[3::4])
+    assert any(r > 0 and g > 0 and b > 0 for r, g, b, _ in zip(*[iter(pixels)] * 4, strict=True))

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from p5 import constants as c
-from p5.assets.image import Image
+from p5.assets.image import Image, P5Image
 from p5.assets.text import Font
 from p5.core import math as p5math
 from p5.core.color import Color, lerp_color
@@ -789,9 +789,9 @@ class SketchContext:
                     close=True,
                 )
 
-    def image(self, image: Image, x: float, y: float, *args: float) -> None:
-        if not isinstance(image, Image):
-            raise ArgumentValidationError("image() requires a p5 Image object.")
+    def image(self, image: Image | P5Image, x: float, y: float, *args: float) -> None:
+        if not isinstance(image, Image | P5Image):
+            raise ArgumentValidationError("image() requires a p5 Image or P5Image object.")
         w: float
         h: float
         source: tuple[int, int, int, int] | None

@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use pollster::block_on;
+use std::collections::HashMap;
 use std::sync::Arc;
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 use winit::window::{Window, WindowId};
@@ -81,11 +82,59 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
+const IMAGE_SHADER: &str = r#"
+struct Viewport {
+    size: vec2<f32>,
+    _padding: vec2<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> viewport: Viewport;
+
+struct VertexInput {
+    @location(0) position: vec2<f32>,
+    @location(1) uv: vec2<f32>,
+};
+
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn vs_main(input: VertexInput) -> VertexOutput {
+    var output: VertexOutput;
+    let ndc_x = input.position.x / viewport.size.x * 2.0 - 1.0;
+    let ndc_y = 1.0 - input.position.y / viewport.size.y * 2.0;
+    output.position = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
+    output.uv = input.uv;
+    return output;
+}
+
+@group(1) @binding(0)
+var image_texture: texture_2d<f32>;
+
+@group(1) @binding(1)
+var image_sampler: sampler;
+
+@fragment
+fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    return textureSample(image_texture, image_sampler, input.uv);
+}
+"#;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 struct Vertex {
     position: [f32; 2],
     color: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+struct ImageVertex {
+    position: [f32; 2],
+    uv: [f32; 2],
 }
 
 #[repr(C)]
@@ -118,6 +167,16 @@ impl GpuColor {
 pub enum DrawCommand {
     Clear(GpuColor),
     Triangles(Vec<([f32; 2], GpuColor)>),
+    Image {
+        key: u64,
+        vertices: [([f32; 2], [f32; 2]); 6],
+    },
+}
+
+struct TextureAsset {
+    _texture: wgpu::Texture,
+    _view: wgpu::TextureView,
+    bind_group: wgpu::BindGroup,
 }
 
 pub struct GpuRenderer {
@@ -129,6 +188,8 @@ pub struct GpuRenderer {
     texture_view: wgpu::TextureView,
     texture_size: wgpu::Extent3d,
     pipeline: wgpu::RenderPipeline,
+    image_pipeline: wgpu::RenderPipeline,
+    image_bind_group_layout: wgpu::BindGroupLayout,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     texture_surface_pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
     texture_sampler: wgpu::Sampler,
@@ -136,6 +197,7 @@ pub struct GpuRenderer {
     viewport_bind_group: wgpu::BindGroup,
     clear_color: GpuColor,
     commands: Vec<DrawCommand>,
+    textures: HashMap<u64, TextureAsset>,
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     surface: Option<GpuSurface>,
 }
@@ -173,7 +235,8 @@ impl GpuRenderer {
             mapped_at_creation: false,
         });
         let bind_group_layout = viewport_bind_group_layout(&device);
-        let texture_bind_group_layout = texture_bind_group_layout(&device);
+        let present_texture_bind_group_layout = texture_bind_group_layout(&device);
+        let image_bind_group_layout = texture_bind_group_layout(&device);
         let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("p5_canvas offscreen texture sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -194,6 +257,12 @@ impl GpuRenderer {
         });
         let pipeline =
             create_pipeline(&device, &bind_group_layout, wgpu::TextureFormat::Rgba8Unorm);
+        let image_pipeline = create_image_pipeline(
+            &device,
+            &bind_group_layout,
+            &image_bind_group_layout,
+            wgpu::TextureFormat::Rgba8Unorm,
+        );
         let texture_size = wgpu::Extent3d {
             width: width.max(1) as u32,
             height: height.max(1) as u32,
@@ -222,7 +291,9 @@ impl GpuRenderer {
             texture_view,
             texture_size,
             pipeline,
-            texture_bind_group_layout,
+            image_pipeline,
+            image_bind_group_layout,
+            texture_bind_group_layout: present_texture_bind_group_layout,
             texture_surface_pipeline: None,
             texture_sampler,
             viewport_buffer,
@@ -234,6 +305,7 @@ impl GpuRenderer {
                 a: 0,
             },
             commands: Vec::new(),
+            textures: HashMap::new(),
             #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
             surface: None,
         };
@@ -297,6 +369,85 @@ impl GpuRenderer {
     pub fn draw_triangles(&mut self, vertices: Vec<([f32; 2], GpuColor)>) {
         if !vertices.is_empty() {
             self.commands.push(DrawCommand::Triangles(vertices));
+        }
+    }
+
+    pub fn upload_texture(
+        &mut self,
+        key: u64,
+        width: usize,
+        height: usize,
+        pixels: &[u8],
+    ) -> Result<(), String> {
+        let expected = width
+            .checked_mul(height)
+            .and_then(|value| value.checked_mul(4))
+            .ok_or_else(|| "Texture dimensions are too large.".to_string())?;
+        if pixels.len() != expected {
+            return Err(format!(
+                "Texture pixel buffer length must be {expected}, got {}.",
+                pixels.len()
+            ));
+        }
+        let size = wgpu::Extent3d {
+            width: width.max(1) as u32,
+            height: height.max(1) as u32,
+            depth_or_array_layers: 1,
+        };
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("p5_canvas image texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width.max(1) as u32 * 4),
+                rows_per_image: Some(height.max(1) as u32),
+            },
+            size,
+        );
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("p5_canvas image texture bind group"),
+            layout: &self.image_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.texture_sampler),
+                },
+            ],
+        });
+        self.textures.insert(
+            key,
+            TextureAsset {
+                _texture: texture,
+                _view: view,
+                bind_group,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn draw_image(&mut self, key: u64, vertices: [([f32; 2], [f32; 2]); 6]) {
+        if self.textures.contains_key(&key) {
+            self.commands.push(DrawCommand::Image { key, vertices });
         }
     }
 
@@ -501,6 +652,7 @@ impl GpuRenderer {
             .find_map(|command| match command {
                 DrawCommand::Clear(color) => Some(*color),
                 DrawCommand::Triangles(_) => None,
+                DrawCommand::Image { .. } => None,
             });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("p5_canvas primitive render pass"),
@@ -538,6 +690,52 @@ impl GpuRenderer {
                         position: *position,
                         color: color.as_float(),
                     }));
+                }
+                DrawCommand::Image { key, vertices } => {
+                    if skip_until_last_clear {
+                        continue;
+                    }
+                    if !batched_vertices.is_empty() {
+                        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("p5_canvas primitive vertices"),
+                            size: (batched_vertices.len() * std::mem::size_of::<Vertex>()) as u64,
+                            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                            mapped_at_creation: false,
+                        });
+                        self.queue.write_buffer(
+                            &buffer,
+                            0,
+                            bytemuck::cast_slice(&batched_vertices),
+                        );
+                        pass.set_pipeline(pipeline);
+                        pass.set_bind_group(0, &self.viewport_bind_group, &[]);
+                        pass.set_vertex_buffer(0, buffer.slice(..));
+                        pass.draw(0..batched_vertices.len() as u32, 0..1);
+                        batched_vertices.clear();
+                    }
+                    let Some(texture) = self.textures.get(key) else {
+                        continue;
+                    };
+                    let image_vertices: Vec<ImageVertex> = vertices
+                        .iter()
+                        .map(|(position, uv)| ImageVertex {
+                            position: *position,
+                            uv: *uv,
+                        })
+                        .collect();
+                    let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("p5_canvas image vertices"),
+                        size: (image_vertices.len() * std::mem::size_of::<ImageVertex>()) as u64,
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    });
+                    self.queue
+                        .write_buffer(&buffer, 0, bytemuck::cast_slice(&image_vertices));
+                    pass.set_pipeline(&self.image_pipeline);
+                    pass.set_bind_group(0, &self.viewport_bind_group, &[]);
+                    pass.set_bind_group(1, &texture.bind_group, &[]);
+                    pass.set_vertex_buffer(0, buffer.slice(..));
+                    pass.draw(0..image_vertices.len() as u32, 0..1);
                 }
             }
         }
@@ -789,6 +987,71 @@ fn create_texture_pipeline(
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
             ..wgpu::PrimitiveState::default()
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+        cache: None,
+    })
+}
+
+fn create_image_pipeline(
+    device: &wgpu::Device,
+    viewport_bind_group_layout: &wgpu::BindGroupLayout,
+    image_bind_group_layout: &wgpu::BindGroupLayout,
+    format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("p5_canvas image shader"),
+        source: wgpu::ShaderSource::Wgsl(IMAGE_SHADER.into()),
+    });
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("p5_canvas image pipeline layout"),
+        bind_group_layouts: &[viewport_bind_group_layout, image_bind_group_layout],
+        push_constant_ranges: &[],
+    });
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("p5_canvas image pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<ImageVertex>() as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &[
+                    wgpu::VertexAttribute {
+                        format: wgpu::VertexFormat::Float32x2,
+                        offset: 0,
+                        shader_location: 0,
+                    },
+                    wgpu::VertexAttribute {
+                        format: wgpu::VertexFormat::Float32x2,
+                        offset: std::mem::size_of::<[f32; 2]>() as u64,
+                        shader_location: 1,
+                    },
+                ],
+            }],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
         },
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),

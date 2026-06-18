@@ -222,7 +222,7 @@ from p5.api.global_mode import (
     vertex,
     width,
 )
-from p5.assets.image import Image, create_image
+from p5.assets.image import Image, P5Image, create_image
 from p5.assets.sound import Sound
 from p5.assets.text import Font
 from p5.backends import available_backends, register_backend
@@ -421,6 +421,7 @@ __all__ = [
     "Sketch",
     "Color",
     "Image",
+    "P5Image",
     "Sound",
     "Font",
     "Vector",

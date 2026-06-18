@@ -156,4 +156,52 @@ def create_image(width: int, height: int) -> Image:
     return Image(PILImage.new("RGBA", (int(width), int(height)), (0, 0, 0, 0)))
 
 
-__all__ = ["Image", "load_image", "create_image"]
+class P5Image:
+    """Rust-managed image asset with Pillow import/export compatibility."""
+
+    def __init__(self, rust_image: object) -> None:
+        self._rust_image = rust_image
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> P5Image:
+        from p5.rust.canvas import require_canvas_extension
+
+        return cls(require_canvas_extension().P5Image.from_file(str(path)))
+
+    @classmethod
+    def from_pil(cls, image: PILImage.Image) -> P5Image:
+        from p5.rust.canvas import require_canvas_extension
+
+        rgba = image.convert("RGBA")
+        rust_image = require_canvas_extension().P5Image.from_rgba_bytes(
+            rgba.width,
+            rgba.height,
+            rgba.tobytes(),
+        )
+        return cls(rust_image)
+
+    @property
+    def width(self) -> int:
+        return int(self._rust_image.width)
+
+    @property
+    def height(self) -> int:
+        return int(self._rust_image.height)
+
+    @property
+    def version(self) -> int:
+        return int(self._rust_image.version)
+
+    @property
+    def pillow(self) -> PILImage.Image:
+        return self.to_pil()
+
+    def to_pil(self) -> PILImage.Image:
+        pixels = bytes(self._rust_image.to_rgba_bytes())
+        return PILImage.frombytes("RGBA", (self.width, self.height), pixels)
+
+    def save(self, path: str | Path) -> None:
+        self._rust_image.save(str(path))
+
+
+__all__ = ["Image", "P5Image", "load_image", "create_image"]

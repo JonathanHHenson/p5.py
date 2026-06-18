@@ -74,12 +74,12 @@ class AsteroidsDemo(p5.Sketch):
         self.export_canvas = export_canvas
         self.output = output
         self.use_sprite_assets = backend != p5.CANVAS
-        self.ship: p5.Image | None = None
-        self.laser: p5.Image | None = None
-        self.meteor_large: p5.Image | None = None
-        self.meteor_medium: p5.Image | None = None
-        self.meteor_small: p5.Image | None = None
-        self.thrust_flame: p5.Image | None = None
+        self.ship: p5.Image | p5.P5Image | None = None
+        self.laser: p5.Image | p5.P5Image | None = None
+        self.meteor_large: p5.Image | p5.P5Image | None = None
+        self.meteor_medium: p5.Image | p5.P5Image | None = None
+        self.meteor_small: p5.Image | p5.P5Image | None = None
+        self.thrust_flame: p5.Image | p5.P5Image | None = None
         self.ship_x = CANVAS_WIDTH / 2
         self.ship_y = CANVAS_HEIGHT / 2
         self.ship_vx = 0.0
@@ -483,7 +483,7 @@ class AsteroidsDemo(p5.Sketch):
             p5.triangle(32, 0, -24, -23, -13, 0)
             p5.triangle(32, 0, -13, 0, -24, 23)
 
-    def _asteroid_image(self, asteroid: Asteroid) -> p5.Image | None:
+    def _asteroid_image(self, asteroid: Asteroid) -> p5.Image | p5.P5Image | None:
         if asteroid.size >= 3:
             return self.meteor_large
         if asteroid.size == 2:

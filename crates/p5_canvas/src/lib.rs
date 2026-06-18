@@ -1,14 +1,16 @@
 mod gpu;
 mod runtime;
 
+use ab_glyph::{point, Font, FontArc, GlyphId, PxScale, ScaleFont};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyDict};
+use pyo3::types::{PyAny, PyBytes, PyDict};
 use runtime::{
     native_window_available as runtime_native_window_available, InteractiveRuntime, RuntimeEvent,
 };
 use std::collections::HashMap;
 use std::f64::consts::PI;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const SUPPORTED_RENDERER: &str = "p2d";
 const SUPPORTED_MODE: &str = "headless";
@@ -22,6 +24,7 @@ const BLEND_MODE_EXCLUSION: &str = "exclusion";
 const BLEND_MODE_MULTIPLY: &str = "multiply";
 const BLEND_MODE_REPLACE: &str = "replace";
 const BLEND_MODE_SCREEN: &str = "screen";
+static NEXT_IMAGE_KEY: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Rgba {
@@ -54,6 +57,12 @@ struct Style {
     blend_mode: String,
     erasing: bool,
     image_sampling: String,
+    text_font_path: Option<String>,
+    text_font_name: String,
+    text_size: f64,
+    text_align_x: String,
+    text_align_y: String,
+    text_leading: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +71,90 @@ struct CachedImage {
     width: usize,
     height: usize,
     pixels: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
+struct CachedText {
+    texture_key: u64,
+    image: CachedImage,
+    bbox_left: i32,
+    bbox_top: i32,
+    ascent: f64,
+}
+
+#[pyclass(name = "P5Image", unsendable)]
+#[derive(Clone, Debug)]
+struct CanvasImage {
+    key: u64,
+    version: u64,
+    width: usize,
+    height: usize,
+    pixels: Vec<u8>,
+}
+
+#[pymethods]
+impl CanvasImage {
+    #[staticmethod]
+    fn from_file(path: &str) -> PyResult<Self> {
+        let image = image::open(path)
+            .map_err(|err| PyValueError::new_err(format!("Could not load image {path}: {err}")))?
+            .to_rgba8();
+        let (width, height) = image.dimensions();
+        Ok(Self::from_pixels(
+            width as usize,
+            height as usize,
+            image.into_raw(),
+        ))
+    }
+
+    #[staticmethod]
+    fn from_rgba_bytes(width: usize, height: usize, pixels: Vec<u8>) -> PyResult<Self> {
+        validate_rgba_buffer(pixels.len(), width, height)?;
+        Ok(Self::from_pixels(width, height, pixels))
+    }
+
+    #[getter]
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    #[getter]
+    fn height(&self) -> usize {
+        self.height
+    }
+
+    #[getter]
+    fn version(&self) -> u64 {
+        self.version
+    }
+
+    fn save(&self, path: &str) -> PyResult<()> {
+        image::save_buffer_with_format(
+            path,
+            &self.pixels,
+            self.width as u32,
+            self.height as u32,
+            image::ColorType::Rgba8,
+            image::ImageFormat::Png,
+        )
+        .map_err(|err| PyValueError::new_err(format!("Failed to save image {path}: {err}")))
+    }
+
+    fn to_rgba_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new_bound(py, &self.pixels)
+    }
+}
+
+impl CanvasImage {
+    fn from_pixels(width: usize, height: usize, pixels: Vec<u8>) -> Self {
+        Self {
+            key: NEXT_IMAGE_KEY.fetch_add(1, Ordering::Relaxed),
+            version: 0,
+            width,
+            height,
+            pixels,
+        }
+    }
 }
 
 type Matrix = (f64, f64, f64, f64, f64, f64);
@@ -143,6 +236,10 @@ struct Canvas {
     pixels: Vec<u8>,
     present_pixels: Vec<u32>,
     image_cache: HashMap<u64, CachedImage>,
+    text_cache: HashMap<String, CachedText>,
+    font_cache: HashMap<String, FontArc>,
+    next_text_key: u64,
+    texture_cache_versions: HashMap<u64, u64>,
     runtime: Option<InteractiveRuntime>,
     gpu: Option<gpu::GpuRenderer>,
     gpu_error: Option<String>,
@@ -181,6 +278,10 @@ impl Canvas {
             pixels: vec![0; physical_width * physical_height * 4],
             present_pixels: vec![0; physical_width * physical_height],
             image_cache: HashMap::new(),
+            text_cache: HashMap::new(),
+            font_cache: HashMap::new(),
+            next_text_key: 1_u64 << 62,
+            texture_cache_versions: HashMap::new(),
             runtime: None,
             gpu,
             gpu_error,
@@ -778,6 +879,11 @@ impl Canvas {
                 },
             );
         }
+        if let Some(cached) = self.image_cache.get(&image_key).cloned() {
+            if self.try_draw_gpu_image(image_key, &cached, dx, dy, dw, dh, style, matrix, source)? {
+                return Ok(());
+            }
+        }
         let cached = self
             .image_cache
             .get(&image_key)
@@ -795,6 +901,129 @@ impl Canvas {
             matrix,
             source,
         )
+    }
+
+    #[pyo3(signature = (image, dx, dy, dw, dh, style, matrix, source=None))]
+    fn draw_canvas_image(
+        &mut self,
+        image: PyRef<'_, CanvasImage>,
+        dx: f64,
+        dy: f64,
+        dw: f64,
+        dh: f64,
+        style: &Bound<'_, PyAny>,
+        matrix: Matrix,
+        source: Option<(i64, i64, i64, i64)>,
+    ) -> PyResult<()> {
+        if self.try_draw_gpu_image_parts(
+            image.key,
+            image.version,
+            image.width,
+            image.height,
+            &image.pixels,
+            dx,
+            dy,
+            dw,
+            dh,
+            style,
+            matrix,
+            source,
+        )? {
+            return Ok(());
+        }
+        self.draw_image_pixels(
+            &image.pixels,
+            image.width,
+            image.height,
+            dx,
+            dy,
+            dw,
+            dh,
+            style,
+            matrix,
+            source,
+        )
+    }
+
+    fn text(
+        &mut self,
+        value: &str,
+        x: f64,
+        y: f64,
+        style: &Bound<'_, PyAny>,
+        matrix: Matrix,
+    ) -> PyResult<()> {
+        let parsed_style = parse_style(style)?;
+        ensure_supported_style(&parsed_style)?;
+        let Some(fill) = parsed_style.fill else {
+            return Ok(());
+        };
+        if parsed_style.text_size <= 0.0 || !parsed_style.text_size.is_finite() {
+            return Err(PyValueError::new_err("text_size must be positive."));
+        }
+        if parsed_style.text_leading <= 0.0 || !parsed_style.text_leading.is_finite() {
+            return Err(PyValueError::new_err("text_leading must be positive."));
+        }
+
+        let lines: Vec<&str> = if value.is_empty() {
+            vec![""]
+        } else {
+            value.split('\n').collect()
+        };
+        for (line_index, line) in lines.iter().enumerate() {
+            let cached = self.cached_text_line(line, fill, &parsed_style)?;
+            if cached.image.width == 0 || cached.image.height == 0 {
+                continue;
+            }
+            let width = cached.image.width as f64 / self.pixel_density;
+            let height = cached.image.height as f64 / self.pixel_density;
+            let mut dx = x;
+            let mut dy = y + line_index as f64 * parsed_style.text_leading;
+            if parsed_style.text_align_x == "center" {
+                dx -= width / 2.0;
+            } else if parsed_style.text_align_x == "right" {
+                dx -= width;
+            }
+            if parsed_style.text_align_y == "center" {
+                dy -= height / 2.0;
+            } else if parsed_style.text_align_y == "bottom" {
+                dy -= height;
+            } else if parsed_style.text_align_y == "baseline" {
+                dy -= cached.ascent / self.pixel_density;
+            }
+            dx += cached.bbox_left as f64 / self.pixel_density;
+            dy += cached.bbox_top as f64 / self.pixel_density;
+
+            if self.try_draw_gpu_image_parts(
+                cached.texture_key,
+                cached.image.version,
+                cached.image.width,
+                cached.image.height,
+                &cached.image.pixels,
+                dx,
+                dy,
+                width,
+                height,
+                style,
+                matrix,
+                None,
+            )? {
+                continue;
+            }
+            self.draw_image_pixels(
+                &cached.image.pixels,
+                cached.image.width,
+                cached.image.height,
+                dx,
+                dy,
+                width,
+                height,
+                style,
+                matrix,
+                None,
+            )?;
+        }
+        Ok(())
     }
 
     #[pyo3(signature = (source_pixels, source_width, source_height, source, destination, mode))]
@@ -1010,6 +1239,101 @@ impl Canvas {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn try_draw_gpu_image(
+        &mut self,
+        image_key: u64,
+        image: &CachedImage,
+        dx: f64,
+        dy: f64,
+        dw: f64,
+        dh: f64,
+        style: &Bound<'_, PyAny>,
+        matrix: Matrix,
+        source: Option<(i64, i64, i64, i64)>,
+    ) -> PyResult<bool> {
+        self.try_draw_gpu_image_parts(
+            image_key,
+            image.version,
+            image.width,
+            image.height,
+            &image.pixels,
+            dx,
+            dy,
+            dw,
+            dh,
+            style,
+            matrix,
+            source,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn try_draw_gpu_image_parts(
+        &mut self,
+        image_key: u64,
+        image_version: u64,
+        image_width: usize,
+        image_height: usize,
+        image_pixels: &[u8],
+        dx: f64,
+        dy: f64,
+        dw: f64,
+        dh: f64,
+        style: &Bound<'_, PyAny>,
+        matrix: Matrix,
+        source: Option<(i64, i64, i64, i64)>,
+    ) -> PyResult<bool> {
+        let style = parse_style(style)?;
+        if !self.can_queue_gpu_primitives(&style) || dw <= 0.0 || dh <= 0.0 {
+            return Ok(false);
+        }
+        let source = source.unwrap_or((0, 0, image_width as i64, image_height as i64));
+        let Some((sx, sy, sw, sh)) = clipped_source_rect(source, image_width, image_height) else {
+            return Ok(true);
+        };
+        let image_to_canvas =
+            image_to_canvas_matrix(matrix, dx, dy, dw, dh, sw, sh, self.pixel_density);
+        if matrix_determinant(image_to_canvas).abs() <= f64::EPSILON {
+            return Ok(true);
+        }
+        let corners = [
+            matrix_transform_point(image_to_canvas, 0.0, 0.0),
+            matrix_transform_point(image_to_canvas, sw as f64, 0.0),
+            matrix_transform_point(image_to_canvas, sw as f64, sh as f64),
+            matrix_transform_point(image_to_canvas, 0.0, sh as f64),
+        ];
+        if let Some(gpu) = self.gpu.as_mut() {
+            let texture_version = self.texture_cache_versions.get(&image_key).copied();
+            if texture_version != Some(image_version) {
+                gpu.upload_texture(image_key, image_width, image_height, image_pixels)
+                    .map_err(|err| {
+                        PyValueError::new_err(format!("Failed to upload image texture: {err}"))
+                    })?;
+                self.texture_cache_versions.insert(image_key, image_version);
+            }
+            let u0 = sx as f32 / image_width as f32;
+            let v0 = sy as f32 / image_height as f32;
+            let u1 = (sx + sw) as f32 / image_width as f32;
+            let v1 = (sy + sh) as f32 / image_height as f32;
+            let vertices = [
+                (point_to_f32(corners[0]), [u0, v0]),
+                (point_to_f32(corners[1]), [u1, v0]),
+                (point_to_f32(corners[2]), [u1, v1]),
+                (point_to_f32(corners[0]), [u0, v0]),
+                (point_to_f32(corners[2]), [u1, v1]),
+                (point_to_f32(corners[3]), [u0, v1]),
+            ];
+            gpu.draw_image(image_key, vertices);
+            self.render_dirty = true;
+            self.offscreen_dirty = true;
+            self.pixels_stale = true;
+            self.texture_stale = false;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     fn transform_point(&self, matrix: Matrix, x: f64, y: f64) -> Point {
         let (a, b, c, d, e, f) = matrix;
         (
@@ -1048,6 +1372,66 @@ impl Canvas {
 
     fn can_queue_gpu_primitives(&self, style: &Style) -> bool {
         self.gpu.is_some() && !style.erasing && style.blend_mode == BLEND_MODE_BLEND
+    }
+
+    fn cached_text_line(&mut self, line: &str, fill: Rgba, style: &Style) -> PyResult<CachedText> {
+        let font_size = (style.text_size * self.pixel_density).round().max(1.0) as usize;
+        let font_key = style
+            .text_font_path
+            .clone()
+            .unwrap_or_else(|| format!("name:{}", style.text_font_name));
+        let cache_key = format!(
+            "{}|{}|{}:{}:{}:{}|{}",
+            font_key, font_size, fill.r, fill.g, fill.b, fill.a, line
+        );
+        if let Some(cached) = self.text_cache.get(&cache_key) {
+            return Ok(cached.clone());
+        }
+
+        let font = self.load_text_font(style)?;
+        let rendered = render_text_line(line, &font, font_size, fill);
+        let texture_key = self.next_text_key;
+        self.next_text_key = self.next_text_key.saturating_add(1);
+        let cached = CachedText {
+            texture_key,
+            image: CachedImage {
+                version: 0,
+                width: rendered.width,
+                height: rendered.height,
+                pixels: rendered.pixels,
+            },
+            bbox_left: rendered.bbox_left,
+            bbox_top: rendered.bbox_top,
+            ascent: rendered.ascent,
+        };
+        self.text_cache.insert(cache_key, cached.clone());
+        Ok(cached)
+    }
+
+    fn load_text_font(&mut self, style: &Style) -> PyResult<FontArc> {
+        if let Some(path) = style.text_font_path.as_ref() {
+            return self.load_text_font_path(path);
+        }
+        for path in default_font_paths() {
+            if let Ok(font) = self.load_text_font_path(path) {
+                return Ok(font);
+            }
+        }
+        Err(PyValueError::new_err(
+            "Could not load a default system font for canvas text.",
+        ))
+    }
+
+    fn load_text_font_path(&mut self, path: &str) -> PyResult<FontArc> {
+        if let Some(font) = self.font_cache.get(path) {
+            return Ok(font.clone());
+        }
+        let bytes = std::fs::read(path)
+            .map_err(|err| PyValueError::new_err(format!("Could not load font {path}: {err}")))?;
+        let font = FontArc::try_from_vec(bytes)
+            .map_err(|_| PyValueError::new_err(format!("Could not parse font {path}.")))?;
+        self.font_cache.insert(path.to_string(), font.clone());
+        Ok(font)
     }
 
     fn prepare_cpu_composite(&mut self) {
@@ -1304,6 +1688,7 @@ fn _canvas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(native_window_available, m)?)?;
     m.add_function(wrap_pyfunction!(gpu_available, m)?)?;
     m.add_class::<Canvas>()?;
+    m.add_class::<CanvasImage>()?;
     Ok(())
 }
 
@@ -1362,6 +1747,107 @@ fn runtime_event_to_pyobject(py: Python<'_>, event: RuntimeEvent) -> PyResult<Py
     Ok(dict.into_any().unbind())
 }
 
+struct RenderedTextLine {
+    width: usize,
+    height: usize,
+    pixels: Vec<u8>,
+    bbox_left: i32,
+    bbox_top: i32,
+    ascent: f64,
+}
+
+fn render_text_line(line: &str, font: &FontArc, font_size: usize, fill: Rgba) -> RenderedTextLine {
+    let scale = PxScale::from(font_size as f32);
+    let scaled_font = font.as_scaled(scale);
+    let ascent = scaled_font.ascent().ceil().max(0.0) as f64;
+    let mut caret = 0.0_f32;
+    let mut glyphs = Vec::new();
+    let mut previous: Option<GlyphId> = None;
+    for ch in line.chars() {
+        let glyph_id = scaled_font.glyph_id(ch);
+        if let Some(previous_id) = previous {
+            caret += scaled_font.kern(previous_id, glyph_id);
+        }
+        glyphs.push(glyph_id.with_scale_and_position(scale, point(caret, ascent as f32)));
+        caret += scaled_font.h_advance(glyph_id);
+        previous = Some(glyph_id);
+    }
+
+    let outlines: Vec<_> = glyphs
+        .into_iter()
+        .filter_map(|glyph| font.outline_glyph(glyph))
+        .collect();
+    if outlines.is_empty() {
+        return RenderedTextLine {
+            width: 1,
+            height: font_size.max(1),
+            pixels: vec![0; font_size.max(1) * 4],
+            bbox_left: 0,
+            bbox_top: 0,
+            ascent,
+        };
+    }
+
+    let mut min_x = i32::MAX;
+    let mut min_y = i32::MAX;
+    let mut max_x = i32::MIN;
+    let mut max_y = i32::MIN;
+    for outline in &outlines {
+        let bounds = outline.px_bounds();
+        min_x = min_x.min(bounds.min.x.floor() as i32);
+        min_y = min_y.min(bounds.min.y.floor() as i32);
+        max_x = max_x.max(bounds.max.x.ceil() as i32);
+        max_y = max_y.max(bounds.max.y.ceil() as i32);
+    }
+
+    let width = (max_x - min_x).max(1) as usize;
+    let height = (max_y - min_y).max(1) as usize;
+    let mut pixels = vec![0; width * height * 4];
+    for outline in outlines {
+        let bounds = outline.px_bounds();
+        let glyph_min_x = bounds.min.x.floor() as i32;
+        let glyph_min_y = bounds.min.y.floor() as i32;
+        outline.draw(|gx, gy, coverage| {
+            let x = gx as i32 + glyph_min_x - min_x;
+            let y = gy as i32 + glyph_min_y - min_y;
+            if x < 0 || y < 0 {
+                return;
+            }
+            let x = x as usize;
+            let y = y as usize;
+            if x >= width || y >= height {
+                return;
+            }
+            let offset = (y * width + x) * 4;
+            pixels[offset] = fill.r;
+            pixels[offset + 1] = fill.g;
+            pixels[offset + 2] = fill.b;
+            pixels[offset + 3] = ((fill.a as f32 * coverage).round() as i32).clamp(0, 255) as u8;
+        });
+    }
+
+    RenderedTextLine {
+        width,
+        height,
+        pixels,
+        bbox_left: min_x,
+        bbox_top: min_y,
+        ascent,
+    }
+}
+
+fn default_font_paths() -> &'static [&'static str] {
+    &[
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        "/Library/Fonts/Arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+    ]
+}
+
 fn validate_mode_and_renderer(mode: &str, renderer: &str) -> PyResult<()> {
     if mode != SUPPORTED_MODE && mode != INTERACTIVE_MODE {
         return Err(PyValueError::new_err(format!(
@@ -1415,6 +1901,35 @@ fn parse_style(style: &Bound<'_, PyAny>) -> PyResult<Style> {
         .map(|value| value.extract::<String>())
         .transpose()?
         .unwrap_or_else(|| "linear".to_string());
+    let text_font_path = match dict.get_item("text_font_path")? {
+        Some(value) if !value.is_none() => Some(value.extract::<String>()?),
+        _ => None,
+    };
+    let text_font_name = dict
+        .get_item("text_font_name")?
+        .map(|value| value.extract::<String>())
+        .transpose()?
+        .unwrap_or_else(|| "default".to_string());
+    let text_size = dict
+        .get_item("text_size")?
+        .map(|value| value.extract::<f64>())
+        .transpose()?
+        .unwrap_or(12.0);
+    let text_align_x = dict
+        .get_item("text_align_x")?
+        .map(|value| value.extract::<String>())
+        .transpose()?
+        .unwrap_or_else(|| "left".to_string());
+    let text_align_y = dict
+        .get_item("text_align_y")?
+        .map(|value| value.extract::<String>())
+        .transpose()?
+        .unwrap_or_else(|| "baseline".to_string());
+    let text_leading = dict
+        .get_item("text_leading")?
+        .map(|value| value.extract::<f64>())
+        .transpose()?
+        .unwrap_or(14.0);
     Ok(Style {
         fill,
         stroke,
@@ -1422,6 +1937,12 @@ fn parse_style(style: &Bound<'_, PyAny>) -> PyResult<Style> {
         blend_mode,
         erasing,
         image_sampling,
+        text_font_path,
+        text_font_name,
+        text_size,
+        text_align_x,
+        text_align_y,
+        text_leading,
     })
 }
 
@@ -1537,6 +2058,10 @@ fn matrix_transform_point(matrix: Matrix, x: f64, y: f64) -> Point {
         matrix.0 * x + matrix.2 * y + matrix.4,
         matrix.1 * x + matrix.3 * y + matrix.5,
     )
+}
+
+fn point_to_f32(point: Point) -> [f32; 2] {
+    [point.0 as f32, point.1 as f32]
 }
 
 fn matrix_determinant(matrix: Matrix) -> f64 {
@@ -2265,6 +2790,12 @@ mod tests {
                 blend_mode: BLEND_MODE_BLEND.to_string(),
                 erasing: false,
                 image_sampling: "linear".to_string(),
+                text_font_path: None,
+                text_font_name: "default".to_string(),
+                text_size: 12.0,
+                text_align_x: "left".to_string(),
+                text_align_y: "baseline".to_string(),
+                text_leading: 14.0,
             },
             true,
             1.0,
@@ -2307,6 +2838,12 @@ mod tests {
                 blend_mode: BLEND_MODE_BLEND.to_string(),
                 erasing: false,
                 image_sampling: "linear".to_string(),
+                text_font_path: None,
+                text_font_name: "default".to_string(),
+                text_size: 12.0,
+                text_align_x: "left".to_string(),
+                text_align_y: "baseline".to_string(),
+                text_leading: 14.0,
             },
             true,
             1.0,
