@@ -2,24 +2,26 @@
 
 ## Summary
 
-`p5_canvas` is a planned Rust-powered rendering and runtime backend for p5-py. It should eventually replace the current split between:
+`p5_canvas` is a planned Rust-powered GPU rendering and native runtime backend for p5-py. It should eventually replace the current split between:
 
 - `HeadlessBackend` + `PillowRenderer` for deterministic script/export/test rendering.
 - `PygletBackend` + `PygletRenderer` / `PygletWebGLRenderer` for interactive windows, scheduling, presentation, and input events.
 
-The Python public API should remain unchanged. Sketches should still call `create_canvas()`, drawing functions, `load_pixels()`, `save_canvas()`, input callbacks, `no_loop()`, `redraw()`, and `run()` through the existing `Sketch` and `SketchContext` layers. The new backend should implement the existing `Backend` and `Renderer` protocols from Python, with the heavy rendering and native runtime responsibilities delegated to a Rust crate named `p5_canvas`.
+The Python public API should remain unchanged. Sketches should still call `create_canvas()`, drawing functions, `load_pixels()`, `save_canvas()`, input callbacks, `no_loop()`, `redraw()`, and `run()` through the existing `Sketch` and `SketchContext` layers. The new backend should implement the existing `Backend` and `Renderer` protocols from Python, with rendering, presentation, readback/export surfaces, and native runtime responsibilities delegated to a Rust crate named `p5_canvas`.
 
-This design is intentionally incremental. Existing Pillow and Pyglet backends should remain available as references and fallbacks until `p5_canvas` reaches feature parity and has broad platform validation.
+This design is intentionally incremental, but the next phase is GPU-first. The current Rust canvas implementation has proved the PyO3 bridge, backend adapter, primitive API surface, and native runtime bridge. Before adding more feature surface such as images, text, pixels, compositing, or export, `p5_canvas` should replace the CPU software RGBA surface with a GPU-backed renderer. Existing Pillow and Pyglet backends should remain available as references and fallbacks until `p5_canvas` reaches feature parity and has broad platform validation.
 
 ## Goals
 
 - Create a new Rust crate at `crates/p5_canvas` that exposes a Python extension module through PyO3.
 - Provide one backend capable of both interactive and headless operation.
+- Render all p5 2D graphics through GPU pipelines, including offscreen/headless surfaces.
+- Use CPU work only for command preparation, tessellation, font shaping/rasterization into glyph atlases, image decoding/upload, and pixel readback/export staging.
 - Preserve p5-py’s existing backend-agnostic public API and `SketchContext` drawing flow.
 - Preserve logical canvas dimensions, physical backing-buffer dimensions, `pixel_density()`, and `display_density()` semantics.
 - Preserve top-left p5 coordinate semantics at the Python API boundary.
 - Provide normalized mouse, keyboard, and eventually touch input events to the existing Python input state and callbacks.
-- Provide deterministic offscreen rendering/export suitable for tests and scripts.
+- Provide deterministic offscreen rendering/export suitable for tests and scripts using GPU textures plus explicit readback staging.
 - Support native interactive windows and presentation without routing ordinary frames through Pillow or Pyglet.
 - Make the Rust backend package-specific and optional during migration, with clear capability errors when unavailable.
 
@@ -31,6 +33,7 @@ This design is intentionally incremental. Existing Pillow and Pyglet backends sh
 - No immediate removal of Pillow/Pyglet until `p5_canvas` has parity and release confidence.
 - No requirement to implement sound in the first backend milestone.
 - No requirement to implement full WebGL/shader parity in the first 2D replacement milestone.
+- No further expansion of the CPU software renderer beyond maintenance needed to preserve already-completed behavior while the GPU renderer is brought online.
 
 ## Current backend API surface
 
@@ -117,7 +120,7 @@ The current renderer protocol is defined in `src/p5/drawing/renderer.py` and inc
 
 `PygletRenderer` is the current interactive native path. It accepts logical p5 coordinates and maps them into physical framebuffer coordinates, including the y-axis flip. It uses native Pyglet drawing for common primitives and a Pillow parity surface for pixel/compositing features that need deterministic behavior.
 
-`p5_canvas` should eliminate the Pyglet/Pillow split by making Rust own both the fast native path and the deterministic offscreen surface semantics.
+`p5_canvas` should eliminate the Pyglet/Pillow split by making Rust own both the fast native path and deterministic offscreen surface semantics through one GPU renderer.
 
 ## Proposed architecture
 
@@ -187,37 +190,35 @@ crates/p5_canvas/
     error.rs            # Rust error types mapped to Python exceptions
     events.rs           # Native-to-p5 event normalization data
     geometry.rs         # Paths, transforms, tessellation helpers
-    image.rs            # Image upload, source rectangles, sampling
+    gpu.rs              # wgpu device, queue, surfaces, textures, pipelines
+    commands.rs         # Frame command recording and batching
+    tessellation.rs     # CPU path tessellation feeding GPU vertex/index buffers
+    image.rs            # Image decode/upload, texture cache, source rectangles, sampling
     renderer.rs         # Renderer trait and command execution
     runtime.rs          # Interactive/headless run loops
-    text.rs             # Font loading, shaping, metrics, glyph cache
+    text.rs             # Font loading, shaping, metrics, GPU glyph atlas
     window.rs           # Native window/display-density integration
 ```
 
-The exact renderer stack should be selected during implementation, but the design should favor:
+The renderer stack for the next phase should be `wgpu`-first:
 
-- a GPU-backed interactive path for windows and presentation
-- an offscreen path that can run without a visible window
-- deterministic RGBA readback/export semantics
-- explicit feature gates for platform-specific functionality
+- `winit` owns native windows and input.
+- `wgpu` owns device selection, swapchain/surface presentation, offscreen textures, render pipelines, texture uploads, and readback staging buffers.
+- `lyon` or an equivalent tessellation layer prepares filled and stroked 2D geometry on the CPU, then all primitive rasterization happens in GPU render passes.
+- Headless mode renders into GPU textures without creating a visible window where the platform supports a headless adapter/device.
+- Export, `load_pixels()`, and parity tests use explicit GPU-to-CPU readback from top-left-oriented RGBA textures.
+- Capability flags and fallback errors must distinguish "extension unavailable", "GPU adapter unavailable", and "feature not yet implemented".
 
 Candidate Rust dependencies to evaluate in the foundation epic:
 
 - `pyo3` for the Python extension boundary, matching the existing `p5_accel` approach.
 - `winit` for cross-platform windows and input events.
-- `wgpu` for cross-platform GPU rendering and offscreen textures.
+- `wgpu` for cross-platform GPU rendering, presentation surfaces, offscreen textures, texture upload, and readback.
 - `lyon` for path tessellation.
 - `image` for PNG/export/image decoding support where needed.
 - `cosmic-text`, `fontdue`, or another Rust text stack for text layout and metrics.
 
-For epic 092, the first implemented 2D stack is a CPU software RGBA surface inside `crates/p5_canvas`, exposed through PyO3 as `p5.rust._canvas.Canvas`.
-
-Tradeoffs:
-
-- It is deterministic and supports headless readback/export without requiring a window, GPU device, or platform-specific render loop.
-- It keeps the Python adapter thin: Python converts `Color`, `StyleState`, and `Matrix2D` into simple bridge payloads, while Rust owns canvas sizing, frame lifecycle, pixel buffers, and primitive rasterization.
-- It is intentionally not the final interactive renderer. GPU-backed presentation, native window events, image caching, text shaping, blend-mode parity beyond `BLEND`, and future WEBGL/3D remain separate milestones.
-- PNG export uses Rust's `image` crate. No new Python runtime dependency is required.
+Epics 091-093 established a CPU software renderer and a native runtime bridge. That implementation is now an interim compatibility scaffold, not the target architecture. Before extending the Rust backend with assets, text, pixel mutation, blend modes, or release migration, the next PBIs should introduce a GPU device layer, command model, primitive pipelines, offscreen texture path, presentation path, and readback/export path. New feature PBIs should target the GPU renderer directly.
 
 ## Python API design
 
@@ -352,6 +353,8 @@ Public compatibility requires `load_pixels()` to return `list[int]` and `update_
 
 `p5_canvas` should treat Pillow as the reference during parity work.
 
+The target renderer is GPU-backed. Python drawing calls should be converted into Rust-side draw commands, batched for the current frame, and executed by `wgpu` render passes against either a window surface texture or an offscreen texture. The renderer must not read pixels back to the CPU during ordinary drawing or presentation. CPU readback is reserved for explicit APIs such as `load_pixels()`, `save_canvas()`, parity tests, and debugging.
+
 Required 2D semantics:
 
 - logical p5 coordinates with top-left origin
@@ -405,7 +408,9 @@ canvas.poll_events() -> list[dict[str, object]]
 
 `CanvasBackend` owns frame scheduling and calls `sketch._draw_frame()` in the existing lifecycle order. Between scheduled frames it drains `poll_events()` and dispatches normalized `MouseEvent` and `KeyboardEvent` objects into `SketchContext`.
 
-The selected native window/input dependency is `winit`, with `softbuffer` as the initial presentation layer for the existing CPU RGBA surface. This keeps the first native runtime aligned with the current software renderer while leaving `wgpu` available for a later GPU renderer milestone. The bridge now reports `native_window_available() == True` on supported desktop targets and exposes `open_window()`, `should_close()`, `poll_events()`, and `present()` through the PyO3 canvas object so unbounded `backend="canvas"` runs can enter the native interactive loop while bounded runs remain offscreen.
+The selected native window/input dependency is `winit`. The completed runtime bridge used the existing CPU RGBA surface as an interim presentation target, but the target runtime must present through `wgpu` surfaces and must share the same GPU renderer used by headless/offscreen mode. The bridge reports `native_window_available() == True` on supported desktop targets and exposes `open_window()`, `should_close()`, `poll_events()`, and `present()` through the PyO3 canvas object so unbounded `backend="canvas"` runs can enter the native interactive loop while bounded runs remain offscreen.
+
+The next runtime work should bind each native window to a `wgpu::Surface`, recreate surface configuration on resize/display-density changes, render the current command buffer directly into the swapchain texture, and keep offscreen rendering on GPU textures when no window is present. The CPU software presenter should remain only as a temporary compatibility path until the GPU presenter is complete.
 
 Rust-originated event payloads passed through `poll_events()` should use physical window coordinates by default:
 
@@ -500,13 +505,14 @@ The Python package remains importable when `_canvas` is unavailable. Selecting b
 
 Use layered validation:
 
-1. Rust unit tests for geometry, blending, coordinate transforms, event normalization, and pixel-buffer operations.
+1. Rust unit tests for geometry, tessellation, GPU command encoding boundaries, blending math helpers, coordinate transforms, event normalization, and pixel-buffer/readback operations.
 2. Python unit tests for `CanvasRenderer` argument conversion, error mapping, capability flags, and fallback behavior when `_canvas` is missing.
 3. Contract tests shared with the current `Renderer` protocol.
-4. Headless parity tests comparing `p5_canvas` output with `PillowRenderer` for deterministic sketches.
+4. Headless GPU parity tests comparing readback from `p5_canvas` GPU textures with `PillowRenderer` for deterministic sketches.
 5. Input event tests using synthetic Rust-side events and Python `InputState` assertions.
-6. Interactive smoke tests for native windows, frame scheduling, resize, close, and display density.
+6. Interactive smoke tests for native windows, `wgpu` surface presentation, frame scheduling, resize, close, and display density.
 7. Platform CI coverage where practical for macOS, Linux, and Windows.
+8. Performance benchmarks that prove common primitive-heavy sketches render faster than the current Pillow and Pyglet paths without per-draw readback.
 
 For bridge changes, keep running:
 
@@ -535,30 +541,32 @@ uv run pytest tests/unit/test_rust_canvas.py
 PYO3_PYTHON=/Users/jhenson/zed_projects/p5_py/.venv/bin/python3 cargo test --manifest-path crates/p5_canvas/Cargo.toml
 ```
 
-After the `winit`/`softbuffer` native layer is enabled and `native_window_available()` returns `True`, manually smoke-test:
+After the `winit`/`wgpu` native layer is enabled and `native_window_available()` returns `True`, manually smoke-test:
 
 ```sh
 uv run python examples/basic_shapes.py --backend canvas
 ```
 
-Confirm that a native window opens, close stops the sketch cleanly, resizing updates `width()`, `height()`, and `display_density()`, mouse move/drag/press/release/click/double-click/wheel callbacks receive logical coordinates, and key press/release/type callbacks update `key`, `key_code`, `key_is_pressed`, and `key_is_down()`.
+Confirm that a native window opens, frames are presented through the GPU surface, close stops the sketch cleanly, resizing updates `width()`, `height()`, and `display_density()`, mouse move/drag/press/release/click/double-click/wheel callbacks receive logical coordinates, and key press/release/type callbacks update `key`, `key_code`, `key_is_pressed`, and `key_is_down()`.
 
 ## Migration plan
 
 1. Add `p5_canvas` as an opt-in backend behind explicit `backend="canvas"`.
-2. Make it pass headless rendering contracts without changing defaults.
-3. Add interactive window/input support and smoke tests.
-4. Reach 2D primitives/image/text/pixel/blend/export parity.
-5. Run examples and documentation against both old and new backends.
-6. Switch the default backend to `canvas` only when the extension is available and platform behavior is stable.
-7. Keep explicit `headless`, `pillow`, and `pyglet` backends during a deprecation window.
-8. Later decide whether to remove, deprecate, or retain Pillow/Pyglet as fallback/reference backends.
+2. Keep the completed CPU bridge as an interim scaffold only; do not add more feature surface there unless needed to keep existing tests passing.
+3. Add the `wgpu` renderer foundation, command buffering, primitive pipelines, offscreen textures, readback, and interactive surface presentation.
+4. Make the GPU renderer pass headless rendering contracts without changing defaults.
+5. Add images, text, pixels, compositing, export, and blend modes directly on the GPU renderer.
+6. Run examples, benchmarks, and documentation against both old and new backends.
+7. Switch the default backend to `canvas` only when the GPU renderer meets parity, performance, packaging, and platform criteria.
+8. Keep explicit `headless`, `pillow`, and `pyglet` backends during a deprecation window.
+9. Later decide whether to remove, deprecate, or retain Pillow/Pyglet as fallback/reference backends.
 
 ## Open questions
 
-- Which Rust graphics stack best balances deterministic headless rendering with native interactive performance?
 - Should the renderer bridge send individual method calls or batched draw commands per frame?
 - How much font rendering difference is acceptable compared with Pillow/Pyglet?
 - Should image decoding move into Rust immediately, or should the first bridge upload bytes from Python `Image` objects?
 - What is the earliest milestone where `canvas` can become the default backend?
 - Should WEBGL/3D replacement live in `p5_canvas` from the beginning, or in a later renderer module sharing the same runtime/window layer?
+- What minimum GPU adapter/features/limits should be required before `canvas` is considered available?
+- How should CI handle machines without reliable GPU access while still validating GPU command encoding and readback behavior?
