@@ -15,6 +15,77 @@ fn noise3(x: f64, y: f64, z: f64, seed: i64, octaves: u32, falloff: f64) -> PyRe
         return Err(PyValueError::new_err("octaves must be at least 1."));
     }
 
+    Ok(noise_fractal(x, y, z, seed, octaves, falloff)?)
+}
+
+#[pyfunction]
+#[pyo3(signature = (width, height, density, time, seed = 0, octaves = 4, falloff = 0.5))]
+fn animated_noise_rgba(
+    py: Python<'_>,
+    width: usize,
+    height: usize,
+    density: f64,
+    time: f64,
+    seed: i64,
+    octaves: u32,
+    falloff: f64,
+) -> PyResult<Py<PyBytes>> {
+    if width == 0 || height == 0 {
+        return Err(PyValueError::new_err("width and height must be positive."));
+    }
+    if !density.is_finite() || density <= 0.0 {
+        return Err(PyValueError::new_err("density must be positive."));
+    }
+    if octaves < 1 {
+        return Err(PyValueError::new_err("octaves must be at least 1."));
+    }
+
+    let physical_width = ((width as f64 * density).round() as usize).max(1);
+    let physical_height = ((height as f64 * density).round() as usize).max(1);
+    let mut pixels = vec![0_u8; physical_width * physical_height * 4];
+
+    for y in 0..physical_height {
+        let logical_y = y as f64 / density;
+        let ridge = logical_y / (height.saturating_sub(1).max(1) as f64);
+        for x in 0..physical_width {
+            let logical_x = x as f64 / density;
+            let coarse = noise_fractal(
+                logical_x * 0.012,
+                logical_y * 0.012,
+                time,
+                seed,
+                octaves,
+                falloff,
+            )?;
+            let detail = noise_fractal(
+                logical_x * 0.028 + 40.0,
+                logical_y * 0.028 - 30.0,
+                time * 1.7,
+                seed,
+                octaves,
+                falloff,
+            )?;
+            let band = noise_fractal(
+                logical_x * 0.004,
+                time * 0.55,
+                logical_y * 0.01,
+                seed,
+                octaves,
+                falloff,
+            )?;
+
+            let offset = (y * physical_width + x) * 4;
+            pixels[offset] = (18.0 + coarse * 70.0 + band * 30.0).clamp(0.0, 255.0) as u8;
+            pixels[offset + 1] = (32.0 + detail * 110.0 + ridge * 40.0).clamp(0.0, 255.0) as u8;
+            pixels[offset + 2] = (70.0 + coarse * 120.0 + detail * 45.0).clamp(0.0, 255.0) as u8;
+            pixels[offset + 3] = 255;
+        }
+    }
+
+    Ok(PyBytes::new_bound(py, &pixels).unbind())
+}
+
+fn noise_fractal(x: f64, y: f64, z: f64, seed: i64, octaves: u32, falloff: f64) -> PyResult<f64> {
     let mut total = 0.0;
     let mut amplitude = 1.0;
     let mut max_amplitude = 0.0;
@@ -52,6 +123,7 @@ fn exclusion_blend_rgb(py: Python<'_>, base: &[u8], overlay: &[u8]) -> PyResult<
 fn _accelerated(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(health_check, m)?)?;
     m.add_function(wrap_pyfunction!(noise3, m)?)?;
+    m.add_function(wrap_pyfunction!(animated_noise_rgba, m)?)?;
     m.add_function(wrap_pyfunction!(exclusion_blend_rgb, m)?)?;
     Ok(())
 }

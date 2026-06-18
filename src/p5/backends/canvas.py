@@ -385,11 +385,11 @@ class CanvasBackend:
 
     def _logical_pointer_position(self, x: float, y: float) -> tuple[float, float]:
         density = self.renderer.pixel_density
-        return float(x) / density, self.renderer.height - float(y) / density
+        return float(x) / density, float(y) / density
 
     def _logical_pointer_delta(self, dx: float, dy: float) -> tuple[float, float]:
         density = self.renderer.pixel_density
-        return float(dx) / density, -float(dy) / density
+        return float(dx) / density, float(dy) / density
 
     def _normalize_mouse_button(self, button: object) -> str | None:
         if button is None:

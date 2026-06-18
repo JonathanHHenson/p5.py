@@ -22,7 +22,7 @@ import argparse
 from pathlib import Path
 
 import p5
-from p5.rust import health_check, is_acceleration_available
+from p5.rust import animated_noise_rgba, health_check, is_acceleration_available
 
 OUTPUT = Path("examples/output/accelerated_noise_pixels.png")
 EXPORT_CANVAS = False
@@ -54,31 +54,18 @@ def draw() -> None:
 
 
 def build_noise_pixels(time: float) -> bytes:
-    pixels = p5.load_pixels()
     width = p5.width()
     height = p5.height()
     density = p5.pixel_density()
-    physical_width = max(1, int(round(width * density)))
-    physical_height = max(1, int(round(height * density)))
-
-    for y in range(physical_height):
-        logical_y = y / density
-        ridge = logical_y / max(1, height - 1)
-        for x in range(physical_width):
-            logical_x = x / density
-            coarse = p5.noise(logical_x * 0.012, logical_y * 0.012, time)
-            detail = p5.noise(logical_x * 0.028 + 40, logical_y * 0.028 - 30, time * 1.7)
-            band = p5.noise(logical_x * 0.004, time * 0.55, logical_y * 0.01)
-
-            red = int(18 + coarse * 70 + band * 30)
-            green = int(32 + detail * 110 + ridge * 40)
-            blue = int(70 + coarse * 120 + detail * 45)
-            alpha = 255
-
-            offset = (y * physical_width + x) * 4
-            pixels[offset : offset + 4] = [red, green, blue, alpha]
-
-    return bytes(pixels)
+    return animated_noise_rgba(
+        width,
+        height,
+        density,
+        time,
+        seed=23,
+        octaves=4,
+        falloff=0.52,
+    )
 
 
 def draw_exclusion_orbits() -> None:

@@ -28,3 +28,25 @@ def test_nearest_image_sampling_preserves_hard_edges_when_scaled():
     assert _rgba_at(pixels, 4, 1, 0) == (255, 0, 0, 255)
     assert _rgba_at(pixels, 4, 2, 0) == (0, 255, 0, 255)
     assert _rgba_at(pixels, 4, 3, 0) == (0, 255, 0, 255)
+
+
+def test_linear_image_sampling_interpolates_when_scaled():
+    sprite = p5.create_image(2, 1)
+    sprite.set(0, 0, (0, 0, 0, 255))
+    sprite.set(1, 0, (255, 255, 255, 255))
+
+    def setup():
+        p5.create_canvas(4, 1)
+        p5.clear()
+        p5.smooth()
+
+    def draw():
+        p5.image(sprite, 0, 0, 4, 1)
+
+    context = p5.run(setup=setup, draw=draw, headless=True, max_frames=1)
+    pixels = context.load_pixels()
+
+    assert _rgba_at(pixels, 4, 0, 0) == (0, 0, 0, 255)
+    assert _rgba_at(pixels, 4, 1, 0) == (64, 64, 64, 255)
+    assert _rgba_at(pixels, 4, 2, 0) == (191, 191, 191, 255)
+    assert _rgba_at(pixels, 4, 3, 0) == (255, 255, 255, 255)

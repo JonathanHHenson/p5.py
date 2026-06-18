@@ -534,13 +534,13 @@ def test_canvas_backend_dispatches_mouse_events_with_logical_coordinates(
 
     assert sketch.context is not None
     assert sketch.context.mouse_x == 12
-    assert sketch.context.mouse_y == 47
+    assert sketch.context.mouse_y == 3
     assert sketch.context.mouse_is_pressed is True
     assert sketch.context.mouse_button == c.LEFT_BUTTON
     assert sketch.events == [
-        ("mouse_pressed", 10, 45, c.LEFT_BUTTON),
-        ("mouse_dragged", 12, 47, 2, 4),
-        ("mouse_wheel", 12, 47, 1, -2),
+        ("mouse_pressed", 10, 5, c.LEFT_BUTTON),
+        ("mouse_dragged", 12, 3, 2, -4),
+        ("mouse_wheel", 12, 3, 1, -2),
     ]
 
 
@@ -591,8 +591,8 @@ def test_canvas_backend_dispatches_touch_events_with_logical_coordinates(
     assert sketch.context is not None
     touch = sketch.context.touches[0]
     assert touch.id == 7
-    assert (touch.x, touch.y) == (12, 47)
-    assert (touch.previous_x, touch.previous_y) == (10, 45)
+    assert (touch.x, touch.y) == (12, 3)
+    assert (touch.previous_x, touch.previous_y) == (10, 5)
     assert touch.pressure == 0.75
 
     backend._dispatch_canvas_event(sketch, {"type": "touch_ended", "id": 7, "x": 24, "y": 6})

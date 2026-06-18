@@ -510,7 +510,7 @@ impl Canvas {
             self.physical_height,
         );
         if self.can_queue_gpu_primitives(&style) {
-            self.draw_gpu_disc(tx, ty, radius, color);
+            self.draw_gpu_disc(tx, ty, radius, color)?;
             return Ok(());
         }
         self.prepare_cpu_composite();
@@ -549,7 +549,7 @@ impl Canvas {
         let radius = stroke_width(style.stroke_weight, self.pixel_density) / 2.0;
         let bounds = clipped_bounds(&[p1, p2], radius, self.physical_width, self.physical_height);
         if self.can_queue_gpu_primitives(&style) {
-            self.draw_gpu_segment(p1, p2, radius * 2.0, stroke);
+            self.draw_gpu_segment(p1, p2, radius * 2.0, stroke)?;
             return Ok(());
         }
         self.prepare_cpu_composite();
@@ -596,8 +596,8 @@ impl Canvas {
             self.physical_width,
             self.physical_height,
         );
-        if self.can_queue_gpu_primitives(&style) {
-            self.draw_gpu_polygon(&transformed, &style, close, self.pixel_density);
+        if self.can_queue_gpu_polygon(&transformed, &style, close) {
+            self.draw_gpu_polygon(&transformed, &style, close, self.pixel_density)?;
             return Ok(());
         }
         self.prepare_cpu_composite();
@@ -658,7 +658,7 @@ impl Canvas {
                     ry,
                     &parsed_style,
                     self.pixel_density,
-                );
+                )?;
                 return Ok(());
             }
             self.prepare_cpu_composite();
@@ -749,7 +749,7 @@ impl Canvas {
                     self.physical_width,
                     self.physical_height,
                 );
-                if self.can_queue_gpu_primitives(&parsed_style) {
+                if self.can_queue_gpu_polygon(&transformed, &parsed_style, mode != "open") {
                     if parsed_style.fill.is_some() && mode != "open" {
                         self.draw_gpu_polygon(
                             &transformed,
@@ -759,7 +759,7 @@ impl Canvas {
                             },
                             true,
                             self.pixel_density,
-                        );
+                        )?;
                     }
                     if let Some(stroke) = parsed_style.stroke {
                         self.draw_gpu_polyline(
@@ -767,7 +767,7 @@ impl Canvas {
                             false,
                             stroke_width(parsed_style.stroke_weight, self.pixel_density),
                             stroke,
-                        );
+                        )?;
                     }
                     return Ok(());
                 }
@@ -1323,7 +1323,11 @@ impl Canvas {
         source: Option<(i64, i64, i64, i64)>,
     ) -> PyResult<bool> {
         let style = parse_style(style)?;
-        if !self.can_queue_gpu_primitives(&style) || dw <= 0.0 || dh <= 0.0 {
+        if !self.can_queue_gpu_primitives(&style)
+            || style.image_sampling != "nearest"
+            || dw <= 0.0
+            || dh <= 0.0
+        {
             return Ok(false);
         }
         let source = source.unwrap_or((0, 0, image_width as i64, image_height as i64));
@@ -1362,6 +1366,10 @@ impl Canvas {
                 (point_to_f32(corners[2]), [u1, v1]),
                 (point_to_f32(corners[3]), [u0, v1]),
             ];
+            self.upload_stale_texture(false)?;
+            let Some(gpu) = self.gpu.as_mut() else {
+                return Ok(false);
+            };
             gpu.draw_image(image_key, vertices);
             self.render_dirty = true;
             self.offscreen_dirty = true;
@@ -1410,6 +1418,11 @@ impl Canvas {
 
     fn can_queue_gpu_primitives(&self, style: &Style) -> bool {
         self.gpu.is_some() && !style.erasing && style.blend_mode == BLEND_MODE_BLEND
+    }
+
+    fn can_queue_gpu_polygon(&self, points: &[Point], style: &Style, close: bool) -> bool {
+        self.can_queue_gpu_primitives(style)
+            && (!close || style.fill.is_none() || polygon_is_convex(points))
     }
 
     fn cached_text_line(&mut self, line: &str, fill: Rgba, style: &Style) -> PyResult<CachedText> {
@@ -1558,9 +1571,9 @@ impl Canvas {
         style: &Style,
         close: bool,
         pixel_density: f64,
-    ) {
+    ) -> PyResult<()> {
         if style.erasing {
-            return;
+            return Ok(());
         }
         if close && points.len() >= 3 {
             if let Some(fill) = style.fill {
@@ -1574,7 +1587,7 @@ impl Canvas {
                         fill,
                     );
                 }
-                self.draw_gpu_triangles(vertices);
+                self.draw_gpu_triangles(vertices)?;
             }
         }
         if let Some(stroke) = style.stroke {
@@ -1583,16 +1596,23 @@ impl Canvas {
                 close,
                 stroke_width(style.stroke_weight, pixel_density),
                 stroke,
-            );
+            )?;
         }
+        Ok(())
     }
 
-    fn draw_gpu_polyline(&mut self, points: &[Point], close: bool, stroke_width: f64, color: Rgba) {
+    fn draw_gpu_polyline(
+        &mut self,
+        points: &[Point],
+        close: bool,
+        stroke_width: f64,
+        color: Rgba,
+    ) -> PyResult<()> {
         if points.len() < 2 {
-            return;
+            return Ok(());
         }
         for pair in points.windows(2) {
-            self.draw_gpu_segment(pair[0], pair[1], stroke_width, color);
+            self.draw_gpu_segment(pair[0], pair[1], stroke_width, color)?;
         }
         if close {
             self.draw_gpu_segment(
@@ -1600,17 +1620,24 @@ impl Canvas {
                 points[0],
                 stroke_width,
                 color,
-            );
+            )?;
         }
+        Ok(())
     }
 
-    fn draw_gpu_segment(&mut self, p1: Point, p2: Point, stroke_width: f64, color: Rgba) {
+    fn draw_gpu_segment(
+        &mut self,
+        p1: Point,
+        p2: Point,
+        stroke_width: f64,
+        color: Rgba,
+    ) -> PyResult<()> {
         let dx = p2.0 - p1.0;
         let dy = p2.1 - p1.1;
         let length = (dx * dx + dy * dy).sqrt();
         if length <= f64::EPSILON {
-            self.draw_gpu_disc(p1.0, p1.1, (stroke_width / 2.0).max(0.5), color);
-            return;
+            self.draw_gpu_disc(p1.0, p1.1, (stroke_width / 2.0).max(0.5), color)?;
+            return Ok(());
         }
         let half = (stroke_width / 2.0).max(0.5);
         let nx = -dy / length * half;
@@ -1622,12 +1649,12 @@ impl Canvas {
         let mut vertices = Vec::with_capacity(6);
         push_triangle(&mut vertices, a, b, c, color);
         push_triangle(&mut vertices, a, c, d, color);
-        self.draw_gpu_triangles(vertices);
+        self.draw_gpu_triangles(vertices)
     }
 
-    fn draw_gpu_disc(&mut self, cx: f64, cy: f64, radius: f64, color: Rgba) {
+    fn draw_gpu_disc(&mut self, cx: f64, cy: f64, radius: f64, color: Rgba) -> PyResult<()> {
         if radius <= 0.0 {
-            return;
+            return Ok(());
         }
         let steps = 24usize;
         let mut vertices = Vec::with_capacity(steps * 3);
@@ -1642,7 +1669,7 @@ impl Canvas {
                 color,
             );
         }
-        self.draw_gpu_triangles(vertices);
+        self.draw_gpu_triangles(vertices)
     }
 
     fn draw_gpu_axis_aligned_ellipse(
@@ -1653,9 +1680,9 @@ impl Canvas {
         ry: f64,
         style: &Style,
         pixel_density: f64,
-    ) {
+    ) -> PyResult<()> {
         if style.erasing || rx <= 0.0 || ry <= 0.0 {
-            return;
+            return Ok(());
         }
         if let Some(fill) = style.fill {
             let steps = 64usize;
@@ -1671,7 +1698,7 @@ impl Canvas {
                     fill,
                 );
             }
-            self.draw_gpu_triangles(vertices);
+            self.draw_gpu_triangles(vertices)?;
         }
         if let Some(stroke) = style.stroke {
             let half_width = (stroke_width(style.stroke_weight, pixel_density) / 2.0).max(0.5);
@@ -1691,17 +1718,20 @@ impl Canvas {
                 push_triangle(&mut vertices, outer_a, inner_a, inner_b, stroke);
                 push_triangle(&mut vertices, outer_a, inner_b, outer_b, stroke);
             }
-            self.draw_gpu_triangles(vertices);
+            self.draw_gpu_triangles(vertices)?;
         }
+        Ok(())
     }
 
-    fn draw_gpu_triangles(&mut self, vertices: Vec<([f32; 2], gpu::GpuColor)>) {
+    fn draw_gpu_triangles(&mut self, vertices: Vec<([f32; 2], gpu::GpuColor)>) -> PyResult<()> {
+        self.upload_stale_texture(false)?;
         if let Some(gpu) = self.gpu.as_mut() {
             gpu.draw_triangles(vertices);
             self.render_dirty = true;
             self.offscreen_dirty = true;
             self.pixels_stale = true;
         }
+        Ok(())
     }
 }
 
@@ -2288,19 +2318,19 @@ fn blit_scaled_region(
     let nearest = sampling == "nearest";
     let default_blend = blend_mode == BLEND_MODE_BLEND;
     for out_y in 0..dh {
-        let src_y = if nearest {
-            sy + (out_y * sh / dh).min(sh - 1)
+        let local_y = if nearest {
+            (out_y * sh / dh).min(sh - 1) as f64
         } else {
-            sy + (((out_y as f64 + 0.5) * sh as f64 / dh as f64).floor() as usize).min(sh - 1)
+            (out_y as f64 + 0.5) * sh as f64 / dh as f64 - 0.5
         };
         for out_x in 0..dw {
-            let src_x = if nearest {
-                sx + (out_x * sw / dw).min(sw - 1)
+            let local_x = if nearest {
+                (out_x * sw / dw).min(sw - 1) as f64
             } else {
-                sx + (((out_x as f64 + 0.5) * sw as f64 / dw as f64).floor() as usize).min(sw - 1)
+                (out_x as f64 + 0.5) * sw as f64 / dw as f64 - 0.5
             };
-            let src_offset = (src_y * src_width + src_x) * 4;
-            let src_pixel = &src[src_offset..src_offset + 4];
+            let src_pixel =
+                sample_image_pixel(src, src_width, sx, sy, sw, sh, local_x, local_y, nearest);
             if src_pixel[3] == 0 {
                 continue;
             }
@@ -2310,9 +2340,9 @@ fn blit_scaled_region(
             if erasing {
                 dst_pixel[3] = dst_pixel[3].saturating_sub(src_pixel[3]);
             } else if default_blend && src_pixel[3] == 255 {
-                dst_pixel.copy_from_slice(src_pixel);
+                dst_pixel.copy_from_slice(&src_pixel);
             } else {
-                blend_pixel(dst_pixel, src_pixel, blend_mode);
+                blend_pixel(dst_pixel, &src_pixel, blend_mode);
             }
             present_pixels[dst_pixel_index] = rgba_to_present_pixel(dst_pixel);
         }
@@ -2342,7 +2372,7 @@ fn blit_affine_region(
     if sw == 0 || sh == 0 || dw == 0 || dh == 0 {
         return;
     }
-    let _sampling = sampling;
+    let nearest = sampling == "nearest";
     let default_blend = blend_mode == BLEND_MODE_BLEND;
     let (a, b, c, d, e, f) = canvas_to_image;
     for out_y in 0..dh {
@@ -2357,10 +2387,8 @@ fn blit_affine_region(
                 local_y += b;
                 continue;
             }
-            let sample_x = local_x.floor().clamp(0.0, (sw - 1) as f64) as usize;
-            let sample_y = local_y.floor().clamp(0.0, (sh - 1) as f64) as usize;
-            let src_offset = ((sy + sample_y) * src_width + sx + sample_x) * 4;
-            let src_pixel = &src[src_offset..src_offset + 4];
+            let src_pixel =
+                sample_image_pixel(src, src_width, sx, sy, sw, sh, local_x, local_y, nearest);
             if src_pixel[3] == 0 {
                 local_x += a;
                 local_y += b;
@@ -2372,15 +2400,72 @@ fn blit_affine_region(
             if erasing {
                 dst_pixel[3] = dst_pixel[3].saturating_sub(src_pixel[3]);
             } else if default_blend && src_pixel[3] == 255 {
-                dst_pixel.copy_from_slice(src_pixel);
+                dst_pixel.copy_from_slice(&src_pixel);
             } else {
-                blend_pixel(dst_pixel, src_pixel, blend_mode);
+                blend_pixel(dst_pixel, &src_pixel, blend_mode);
             }
             present_pixels[dst_pixel_index] = rgba_to_present_pixel(dst_pixel);
             local_x += a;
             local_y += b;
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn sample_image_pixel(
+    src: &[u8],
+    src_width: usize,
+    sx: usize,
+    sy: usize,
+    sw: usize,
+    sh: usize,
+    local_x: f64,
+    local_y: f64,
+    nearest: bool,
+) -> [u8; 4] {
+    if nearest {
+        let x = sx + local_x.floor().clamp(0.0, (sw - 1) as f64) as usize;
+        let y = sy + local_y.floor().clamp(0.0, (sh - 1) as f64) as usize;
+        let offset = (y * src_width + x) * 4;
+        return [
+            src[offset],
+            src[offset + 1],
+            src[offset + 2],
+            src[offset + 3],
+        ];
+    }
+
+    let clamped_x = local_x.clamp(0.0, (sw - 1) as f64);
+    let clamped_y = local_y.clamp(0.0, (sh - 1) as f64);
+    let x0 = clamped_x.floor() as usize;
+    let y0 = clamped_y.floor() as usize;
+    let x1 = (x0 + 1).min(sw - 1);
+    let y1 = (y0 + 1).min(sh - 1);
+    let tx = clamped_x - x0 as f64;
+    let ty = clamped_y - y0 as f64;
+
+    let p00 = source_pixel(src, src_width, sx + x0, sy + y0);
+    let p10 = source_pixel(src, src_width, sx + x1, sy + y0);
+    let p01 = source_pixel(src, src_width, sx + x0, sy + y1);
+    let p11 = source_pixel(src, src_width, sx + x1, sy + y1);
+
+    let mut out = [0_u8; 4];
+    for channel in 0..4 {
+        let top = p00[channel] as f64 * (1.0 - tx) + p10[channel] as f64 * tx;
+        let bottom = p01[channel] as f64 * (1.0 - tx) + p11[channel] as f64 * tx;
+        out[channel] = (top * (1.0 - ty) + bottom * ty).round().clamp(0.0, 255.0) as u8;
+    }
+    out
+}
+
+fn source_pixel(src: &[u8], src_width: usize, x: usize, y: usize) -> [u8; 4] {
+    let offset = (y * src_width + x) * 4;
+    [
+        src[offset],
+        src[offset + 1],
+        src[offset + 2],
+        src[offset + 3],
+    ]
 }
 
 fn draw_polygon_overlay(
@@ -2658,6 +2743,28 @@ fn point_in_polygon(sample: Point, points: &[Point]) -> bool {
     inside
 }
 
+fn polygon_is_convex(points: &[Point]) -> bool {
+    if points.len() < 4 {
+        return true;
+    }
+    let mut sign = 0.0_f64;
+    for index in 0..points.len() {
+        let a = points[index];
+        let b = points[(index + 1) % points.len()];
+        let c = points[(index + 2) % points.len()];
+        let cross = (b.0 - a.0) * (c.1 - b.1) - (b.1 - a.1) * (c.0 - b.0);
+        if cross.abs() <= f64::EPSILON {
+            continue;
+        }
+        if sign == 0.0 {
+            sign = cross.signum();
+        } else if sign != cross.signum() {
+            return false;
+        }
+    }
+    true
+}
+
 fn distance_to_segment_squared(point: Point, p1: Point, p2: Point) -> f64 {
     let vx = p2.0 - p1.0;
     let vy = p2.1 - p1.1;
@@ -2849,30 +2956,32 @@ mod tests {
 
         canvas.begin_frame();
         canvas.background((255, 255, 255, 255));
-        canvas.draw_gpu_polygon(
-            &[(1.0, 1.0), (6.0, 1.0), (1.0, 6.0)],
-            &Style {
-                fill: Some(Rgba {
-                    r: 255,
-                    g: 0,
-                    b: 0,
-                    a: 255,
-                }),
-                stroke: None,
-                stroke_weight: 1.0,
-                blend_mode: BLEND_MODE_BLEND.to_string(),
-                erasing: false,
-                image_sampling: "linear".to_string(),
-                text_font_path: None,
-                text_font_name: "default".to_string(),
-                text_size: 12.0,
-                text_align_x: "left".to_string(),
-                text_align_y: "baseline".to_string(),
-                text_leading: 14.0,
-            },
-            true,
-            1.0,
-        );
+        canvas
+            .draw_gpu_polygon(
+                &[(1.0, 1.0), (6.0, 1.0), (1.0, 6.0)],
+                &Style {
+                    fill: Some(Rgba {
+                        r: 255,
+                        g: 0,
+                        b: 0,
+                        a: 255,
+                    }),
+                    stroke: None,
+                    stroke_weight: 1.0,
+                    blend_mode: BLEND_MODE_BLEND.to_string(),
+                    erasing: false,
+                    image_sampling: "linear".to_string(),
+                    text_font_path: None,
+                    text_font_name: "default".to_string(),
+                    text_size: 12.0,
+                    text_align_x: "left".to_string(),
+                    text_align_y: "baseline".to_string(),
+                    text_leading: 14.0,
+                },
+                true,
+                1.0,
+            )
+            .unwrap();
         canvas.end_frame();
 
         let pixels = canvas.load_pixels();
@@ -2897,30 +3006,32 @@ mod tests {
         canvas.pixels[preserved_pixel_offset..preserved_pixel_offset + 4]
             .copy_from_slice(&[255, 0, 0, 255]);
         canvas.upload_cpu_pixels().unwrap();
-        canvas.draw_gpu_polygon(
-            &[(1.0, 1.0), (3.0, 1.0), (1.0, 3.0)],
-            &Style {
-                fill: Some(Rgba {
-                    r: 0,
-                    g: 0,
-                    b: 255,
-                    a: 255,
-                }),
-                stroke: None,
-                stroke_weight: 1.0,
-                blend_mode: BLEND_MODE_BLEND.to_string(),
-                erasing: false,
-                image_sampling: "linear".to_string(),
-                text_font_path: None,
-                text_font_name: "default".to_string(),
-                text_size: 12.0,
-                text_align_x: "left".to_string(),
-                text_align_y: "baseline".to_string(),
-                text_leading: 14.0,
-            },
-            true,
-            1.0,
-        );
+        canvas
+            .draw_gpu_polygon(
+                &[(1.0, 1.0), (3.0, 1.0), (1.0, 3.0)],
+                &Style {
+                    fill: Some(Rgba {
+                        r: 0,
+                        g: 0,
+                        b: 255,
+                        a: 255,
+                    }),
+                    stroke: None,
+                    stroke_weight: 1.0,
+                    blend_mode: BLEND_MODE_BLEND.to_string(),
+                    erasing: false,
+                    image_sampling: "linear".to_string(),
+                    text_font_path: None,
+                    text_font_name: "default".to_string(),
+                    text_size: 12.0,
+                    text_align_x: "left".to_string(),
+                    text_align_y: "baseline".to_string(),
+                    text_leading: 14.0,
+                },
+                true,
+                1.0,
+            )
+            .unwrap();
         canvas.end_frame();
 
         let pixels = canvas.load_pixels();

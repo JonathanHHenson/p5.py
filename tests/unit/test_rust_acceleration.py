@@ -6,6 +6,7 @@ import p5.rust as rust_acceleration
 from p5.core import random as random_module
 from p5.rust import _accelerated as original_accelerated
 from p5.rust import (
+    animated_noise_rgba,
     benchmarks,
     exclusion_blend_rgb,
     exclusion_blend_rgb_python,
@@ -37,6 +38,27 @@ class FakeAccelerated:
         assert overlay == b"\xff\x80"
         return b"\x01\x02"
 
+    def animated_noise_rgba(
+        self,
+        width: int,
+        height: int,
+        density: float,
+        time: float,
+        seed: int,
+        octaves: int,
+        falloff: float,
+    ) -> bytes:
+        assert (width, height, density, time, seed, octaves, falloff) == (
+            2,
+            1,
+            1.0,
+            0.5,
+            7,
+            2,
+            0.25,
+        )
+        return bytes([1, 2, 3, 255, 4, 5, 6, 255])
+
 
 def test_health_check_reports_fallback_or_extension() -> None:
     assert health_check() in {"python-fallback", "rust-accelerated"}
@@ -49,6 +71,9 @@ def test_wrappers_prefer_accelerated_module_when_available(monkeypatch: pytest.M
     assert health_check() == "fake-rust"
     assert noise_3d(1, 2, 3, seed=7, octaves=2, falloff=0.25) == 0.75
     assert exclusion_blend_rgb(b"\x00\x40", b"\xff\x80") == b"\x01\x02"
+    assert animated_noise_rgba(2, 1, 1, 0.5, seed=7, octaves=2, falloff=0.25) == bytes(
+        [1, 2, 3, 255, 4, 5, 6, 255]
+    )
 
 
 def test_monkeypatch_restores_original_acceleration_module() -> None:
@@ -97,6 +122,13 @@ def test_exclusion_blend_acceleration_matches_python_reference() -> None:
     overlay = bytes([255, 128, 64, 0, 50, 200])
 
     assert exclusion_blend_rgb(base, overlay) == exclusion_blend_rgb_python(base, overlay)
+
+
+def test_animated_noise_rgba_returns_physical_rgba_buffer() -> None:
+    pixels = animated_noise_rgba(3, 2, 2, 0.125, seed=23, octaves=2, falloff=0.5)
+
+    assert len(pixels) == 3 * 2 * 2 * 2 * 4
+    assert pixels[3::4] == bytes([255] * (3 * 2 * 2 * 2))
 
 
 def test_benchmark_smoke_helpers_run_with_or_without_extension() -> None:

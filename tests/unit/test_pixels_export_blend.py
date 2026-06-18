@@ -31,6 +31,21 @@ def test_update_pixels_accepts_bytes_buffer():
     assert context.load_pixels() == [255, 0, 0, 255, 0, 0, 255, 255]
 
 
+def test_gpu_queued_text_preserves_pixels_from_update_pixels():
+    def setup():
+        p5.create_canvas(8, 8)
+        p5.text_size(8)
+
+    def draw():
+        p5.update_pixels(bytes([10, 20, 30, 255] * 64))
+        p5.fill(255)
+        p5.text("x", 1, 7)
+
+    context = p5.run(setup=setup, draw=draw, headless=True, max_frames=1)
+
+    assert context.load_pixels()[0:4] == [10, 20, 30, 255]
+
+
 def test_save_canvas_adds_default_extension_and_validates_overwrite(tmp_path):
     def setup():
         p5.create_canvas(3, 2)
