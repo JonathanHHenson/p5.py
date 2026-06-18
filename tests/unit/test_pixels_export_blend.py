@@ -1,6 +1,7 @@
 import pytest
 
 import p5
+from p5.core.color import Color
 from p5.exceptions import ArgumentValidationError
 
 
@@ -57,7 +58,9 @@ def test_save_canvas_adds_default_extension_and_validates_overwrite(tmp_path):
     assert output.suffix == ".png"
     image = p5.load_image(output)
     assert (image.width, image.height) == (3, 2)
-    assert image.get(0, 0).to_tuple() == (10, 20, 30, 255)
+    pixel = image.get(0, 0)
+    assert isinstance(pixel, Color)
+    assert pixel.to_tuple() == (10, 20, 30, 255)
 
     with pytest.raises(ArgumentValidationError, match="Refusing to overwrite"):
         context.save_canvas(output, overwrite=False)

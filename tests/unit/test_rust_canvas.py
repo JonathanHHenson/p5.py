@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -145,15 +146,18 @@ class FakeCanvas:
 
     def text_width(self, value: str, style: dict[str, object]) -> float:
         self.calls.append(("text_width", value, style))
-        return len(value) * float(style["text_size"]) * 0.5
+        text_size = cast(float, style["text_size"])
+        return len(value) * float(text_size) * 0.5
 
     def text_ascent(self, style: dict[str, object]) -> float:
         self.calls.append(("text_ascent", style))
-        return float(style["text_size"]) * 0.8
+        text_size = cast(float, style["text_size"])
+        return float(text_size) * 0.8
 
     def text_descent(self, style: dict[str, object]) -> float:
         self.calls.append(("text_descent", style))
-        return float(style["text_size"]) * 0.2
+        text_size = cast(float, style["text_size"])
+        return float(text_size) * 0.2
 
     def load_pixels(self) -> bytes:
         return self.pixels
