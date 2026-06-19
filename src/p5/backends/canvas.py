@@ -378,10 +378,7 @@ class CanvasBackend:
             "pixel_density",
             default=self.renderer.pixel_density,
         )
-        resize = getattr(self.renderer.runtime_canvas(), "resize", None)
-        if callable(resize):
-            resize(width, height, pixel_density, c.P2D)
-        self.renderer._sync_dimensions()
+        self.renderer.resize(width, height, pixel_density)
 
     def _logical_pointer_position(self, x: float, y: float) -> tuple[float, float]:
         density = self.renderer.pixel_density

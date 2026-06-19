@@ -209,6 +209,48 @@ struct GpuSurface {
     config: wgpu::SurfaceConfiguration,
 }
 
+fn checked_texture_size(
+    width: usize,
+    height: usize,
+    max_texture_dimension_2d: u32,
+) -> Result<wgpu::Extent3d, String> {
+    let width = u32::try_from(width.max(1))
+        .map_err(|_| format!("Canvas physical width {width} exceeds the GPU texture limit of {max_texture_dimension_2d}."))?;
+    let height = u32::try_from(height.max(1))
+        .map_err(|_| format!("Canvas physical height {height} exceeds the GPU texture limit of {max_texture_dimension_2d}."))?;
+    if width > max_texture_dimension_2d {
+        return Err(format!(
+            "Canvas physical width {width} exceeds the GPU texture limit of {max_texture_dimension_2d}. Reduce create_canvas() width or pixel_density()."
+        ));
+    }
+    if height > max_texture_dimension_2d {
+        return Err(format!(
+            "Canvas physical height {height} exceeds the GPU texture limit of {max_texture_dimension_2d}. Reduce create_canvas() height or pixel_density()."
+        ));
+    }
+    Ok(wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    })
+}
+
+fn create_offscreen_texture(device: &wgpu::Device, size: wgpu::Extent3d) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("p5_canvas offscreen texture"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    })
+}
+
 impl GpuRenderer {
     pub fn new(width: usize, height: usize) -> Result<Self, String> {
         let instance = wgpu::Instance::default();
@@ -263,24 +305,9 @@ impl GpuRenderer {
             &image_bind_group_layout,
             wgpu::TextureFormat::Rgba8Unorm,
         );
-        let texture_size = wgpu::Extent3d {
-            width: width.max(1) as u32,
-            height: height.max(1) as u32,
-            depth_or_array_layers: 1,
-        };
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("p5_canvas offscreen texture"),
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
+        let limits = device.limits();
+        let texture_size = checked_texture_size(width, height, limits.max_texture_dimension_2d)?;
+        let texture = create_offscreen_texture(&device, texture_size);
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut renderer = Self {
             instance,
@@ -309,31 +336,16 @@ impl GpuRenderer {
             #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
             surface: None,
         };
-        renderer.resize(width, height);
+        renderer.resize(width, height)?;
         renderer.clear_transparent();
         renderer.render();
         Ok(renderer)
     }
 
-    pub fn resize(&mut self, width: usize, height: usize) {
-        self.texture_size = wgpu::Extent3d {
-            width: width.max(1) as u32,
-            height: height.max(1) as u32,
-            depth_or_array_layers: 1,
-        };
-        self.texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("p5_canvas offscreen texture"),
-            size: self.texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
+    pub fn resize(&mut self, width: usize, height: usize) -> Result<(), String> {
+        let limits = self.device.limits();
+        self.texture_size = checked_texture_size(width, height, limits.max_texture_dimension_2d)?;
+        self.texture = create_offscreen_texture(&self.device, self.texture_size);
         self.texture_view = self
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -346,6 +358,7 @@ impl GpuRenderer {
         };
         self.queue
             .write_buffer(&self.viewport_buffer, 0, bytemuck::bytes_of(&viewport));
+        Ok(())
     }
 
     pub fn begin_frame(&mut self) {

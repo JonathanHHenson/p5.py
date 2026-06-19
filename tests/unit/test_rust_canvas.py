@@ -620,6 +620,44 @@ def test_canvas_backend_handles_resize_events(monkeypatch: pytest.MonkeyPatch) -
     assert sketch.context.height == 80
 
 
+def test_canvas_backend_maps_oversized_resize_to_argument_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class LimitedTextureCanvas(FakeCanvas):
+        def resize(self, width: int, height: int, pixel_density: float, renderer: str) -> None:
+            physical_width = round(width * pixel_density)
+            if physical_width > 2048:
+                raise ValueError(
+                    "Canvas physical width "
+                    f"{physical_width} exceeds the GPU texture limit of 2048. "
+                    "Reduce create_canvas() width or pixel_density()."
+                )
+            super().resize(width, height, pixel_density, renderer)
+
+    class LimitedTextureCanvasModule(FakeCanvasModule):
+        Canvas = LimitedTextureCanvas
+
+    monkeypatch.setattr(canvas_bridge, "_canvas", LimitedTextureCanvasModule())
+    monkeypatch.setattr(canvas_bridge, "_CANVAS_IMPORT_ERROR", None)
+    backend = CanvasBackend()
+    sketch = EventSketch()
+    context = SketchContext(sketch, backend, plugins=GLOBAL_PLUGIN_REGISTRY)
+    sketch.context = context
+    sketch._running = True
+    context.create_canvas(100, 50, pixel_density=2)
+
+    with pytest.raises(ArgumentValidationError, match="GPU texture limit"):
+        backend._dispatch_canvas_event(
+            sketch,
+            {"type": "resized", "width": 1200, "height": 800, "pixel_density": 2},
+        )
+
+    assert backend.renderer.width == 100
+    assert backend.renderer.height == 50
+    assert context.width == 100
+    assert context.height == 50
+
+
 def test_canvas_next_frame_delay_skips_missed_frames() -> None:
     backend = CanvasBackend.__new__(CanvasBackend)
     backend._next_frame_time = 0.0

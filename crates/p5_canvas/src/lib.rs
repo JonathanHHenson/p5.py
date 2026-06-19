@@ -301,6 +301,12 @@ impl Canvas {
     ) -> PyResult<()> {
         validate_renderer(renderer)?;
         let (physical_width, physical_height) = physical_dimensions(width, height, pixel_density)?;
+        if let Some(gpu) = self.gpu.as_mut() {
+            gpu.resize(physical_width, physical_height)
+                .map_err(PyValueError::new_err)?;
+            gpu.clear_transparent();
+            gpu.render();
+        }
         self.width = width;
         self.height = height;
         self.pixel_density = pixel_density;
@@ -308,11 +314,6 @@ impl Canvas {
         self.physical_height = physical_height;
         self.pixels = vec![0; physical_width * physical_height * 4];
         self.present_pixels = vec![0; physical_width * physical_height];
-        if let Some(gpu) = self.gpu.as_mut() {
-            gpu.resize(physical_width, physical_height);
-            gpu.clear_transparent();
-            gpu.render();
-        }
         self.render_dirty = false;
         self.offscreen_dirty = false;
         self.pixels_stale = false;
