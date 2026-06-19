@@ -1,0 +1,57 @@
+# Color, Style, and Transforms
+
+## Color
+
+- `color(*args)`
+- `color_mode(mode, max1=None, max2=None, max3=None, max_alpha=None)`
+- `lerp_color(start, stop, amount)`
+- `red(color)`
+- `green(color)`
+- `blue(color)`
+- `alpha(color)`
+- `hue(color)`
+- `saturation(color)`
+- `brightness(color)`
+- `lightness(color)`
+
+## Style
+
+- `fill(*color)`
+- `no_fill()`
+- `stroke(*color)`
+- `no_stroke()`
+- `stroke_weight(weight)`
+- `stroke_cap(cap)`
+- `stroke_join(join)`
+- `rect_mode(mode)`
+- `ellipse_mode(mode)`
+- `image_mode(mode)`
+- `smooth()`
+- `no_smooth()`
+
+## Transforms
+
+- `push()`
+- `pop()`
+- `translate(x, y)`
+- `rotate(angle)`
+- `scale(x, y=None)`
+- `shear_x(angle)`
+- `shear_y(angle)`
+- `reset_matrix()`
+- `apply_matrix(...)`
+
+## Text
+
+- `text(value, x, y, width=None, height=None)`
+- `text_size(size)`
+- `text_font(font)`
+- `text_align(horizontal, vertical=None)`
+- `text_style(style)`
+- `text_width(value)`
+- `text_ascent()`
+- `text_descent()`
+- `text_bounds(value, x=0, y=0)`
+- `describe(text)`
+- `describe_element(name, text)`
+

@@ -1,149 +1,113 @@
-# p5-py
+# p5py
 
-`p5-py` is a Pythonic creative-coding package inspired by p5.js.
+[![PyPI](https://img.shields.io/pypi/v/p5py-vibe.svg)](https://pypi.org/project/p5py-vibe/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/p5py-vibe.svg)](https://pypi.org/project/p5py-vibe/)
+[![License: LGPL-2.1](https://img.shields.io/badge/License-LGPL--2.1-blue.svg)](license.txt)
+[![CI](https://github.com/JonathanHHenson/p5.py/actions/workflows/ci.yml/badge.svg)](https://github.com/JonathanHHenson/p5.py/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/pypi/dm/p5py-vibe.svg)](https://pypi.org/project/p5py-vibe/)
 
-It keeps the familiar p5 sketch lifecycle and many p5-style APIs while staying native to Python, backend-agnostic, typed, and testable.
+`p5py` is a friendly Python creative-coding library inspired by p5.js. It is for
+people who want to sketch with code: draw shapes, animate motion, react to input,
+load images, play with pixels, and make small visual experiments without first
+building a full app.
 
-## Status
+The public API is Python-first. Function names use `snake_case`, sketches are
+ordinary Python files, and the renderer is powered by the packaged Rust canvas
+runtime.
 
-The current package supports a strong 2D-first workflow on the Rust `p5_canvas` runtime, bounded/headless runs for deterministic tests and export, interactive native windows when available, optional WEBGL-style/3D APIs, optional media extras, and optional Rust acceleration for a few compute-heavy paths.
-
-The public API is intentionally Python-first:
-
-- canonical APIs use `snake_case`, such as `create_canvas()` and `frame_rate()`
-- the public API is intentionally Pythonic and uses `snake_case` names only
-- excluded browser-only APIs fail with explicit `p5` exceptions instead of failing indirectly
-
-## Installation
-
-Install the published package with pip:
-
-```sh
-pip install p5-py
-```
-
-Install optional media support when you need camera/video helpers:
+## Install
 
 ```sh
-pip install "p5-py[media]"
+pip install p5py-vibe
 ```
 
-For local development in this repository, use `uv`:
+Install optional media helpers when you need camera, video, or sound-related
+extras:
 
 ```sh
-uv sync --dev
+pip install "p5py-vibe[media]"
 ```
 
-## Quick start
+## First Sketch
+
+Create a file named `circle_sketch.py`:
 
 ```python
 import p5
 
 
 def setup() -> None:
-    p5.create_canvas(320, 240)
+    p5.create_canvas(400, 300)
     p5.no_stroke()
 
 
 def draw() -> None:
     p5.background(245)
-    p5.fill(255, 80, 80)
-    p5.circle(160, 120, 80)
+    p5.fill(255, 90, 90)
+    p5.circle(200, 150, 100)
 
 
 p5.run(setup=setup, draw=draw)
 ```
 
-Run a sketch headlessly for deterministic tests or export flows:
+Run it:
 
 ```sh
-uv run python examples/basic_shapes.py --headless --frames 1
+python circle_sketch.py
 ```
 
-## Runtime
+For repeatable scripts, use a bounded headless render:
 
-`p5-py` keeps the user-facing API backend-agnostic while routing rendering, assets, text, pixels, export, and presentation through the Rust `p5_canvas` runtime.
+```python
+p5.run(setup=setup, draw=draw, headless=True, max_frames=1)
+```
 
-- use `headless=True` or `--headless` for bounded/offscreen tests, CI, and export
-- use interactive runs for native windows when the installed canvas extension supports them
-- `load_image()` and image saving are canvas-owned and require the packaged `p5.rust._canvas` extension
+## What You Can Make
 
-For runtime details, see `docs/user/backends.md`.
+- 2D drawings with shapes, curves, color, transforms, and blend modes.
+- Animated sketches using the familiar `setup()` and `draw()` lifecycle.
+- Image and pixel experiments, including canvas export.
+- Text, font measurement, and accessibility descriptions.
+- Interactive sketches with mouse, keyboard, and touch state when native window
+  support is available.
+- WEBGL-style 3D sketches with primitives, lights, materials, models, textures,
+  and shaders.
+- Small games and visual toys using the examples as starting points.
 
-## Examples
+## Learn More
 
-Examples live in `examples/`.
+- [Getting started](docs/getting_started/index.md)
+- [Examples](examples/README.md)
+- [API reference](docs/reference/index.md)
+- [Contributor docs](docs/contribute/index.md)
 
-A few useful entry points:
+## For Contributors
 
-- `examples/basic_shapes.py`
-- `examples/bouncing_ball.py`
-- `examples/transforms.py`
-- `examples/image_text_data.py`
-- `examples/pixels_blend_export.py`
-- `examples/plugin_hooks.py`
-- `examples/webgl_primitives_gallery.py`
-
-See `examples/README.md` for the full index.
-
-## Documentation map
-
-User docs:
-
-- `docs/user/getting_started.md`
-- `docs/user/lifecycle.md`
-- `docs/user/backends.md`
-- `docs/user/compatibility.md`
-- `docs/user/images_and_pixels.md`
-- `docs/user/events.md`
-- `docs/user/plugins.md`
-
-Technical docs:
-
-- `docs/technical/testing.md`
-- `docs/technical/releasing.md`
-- `docs/technical/hidpi_rendering.md`
-- `docs/technical/native_pyglet_renderer.md`
-- `docs/technical/rust_acceleration.md`
-- `docs/technical/p5_canvas_rust_backend.md`
-- `docs/technical/canvas_migration_release.md`
-- `docs/technical/advanced_3d_media_strategy.md`
-- `docs/technical/project_plan.md`
-
-## Development workflow
-
-Common local commands:
+This repository uses `uv` for Python commands:
 
 ```sh
+uv sync --dev
 uv run ruff check .
-uv run ruff format .
 uv run mypy src
 uv run pytest
-uv run python examples/basic_shapes.py --headless --frames 1
-uv run python scripts/bump_version.py --check
-cargo test --manifest-path crates/p5_canvas/Cargo.toml
-uv build
 ```
 
-Equivalent shortcuts are available in `Makefile`:
+The canvas runtime is a required PyO3 extension:
 
 ```sh
-make lint
-make test-fast
-make test
-make typecheck
-make version-check
-make bump-version VERSION=patch
-make build
+uvx maturin develop --manifest-path crates/p5_canvas/Cargo.toml --module-name p5.rust._canvas --python-source src --features extension-module
 ```
 
-## Compatibility policy
+The contributor documentation explains the architecture, lifecycle, testing
+workflow, and release shape in more detail:
 
-`p5-py` aims to keep the p5 mental model while remaining idiomatic Python.
+- [Contributor guide](docs/contribute/index.md)
+- [Architecture](docs/contribute/architecture.md)
+- [Runtime model](docs/contribute/runtime.md)
+- [Testing and CI](docs/contribute/testing.md)
 
-- Use the snake_case APIs as the only public function interface.
-- Convert p5.js camelCase examples to snake_case when porting or teaching from p5.js material.
-- DOM and browser-only features are excluded.
-- Unsupported compatibility stubs raise explicit package-specific errors.
+## Compatibility
 
-See `docs/user/compatibility.md` for details.
+`p5py` is inspired by p5.js, but it is not a browser port. It does not include
+DOM helpers, browser-only APIs, JavaScript aliases, or a Pillow/Pyglet fallback.
+Unsupported features raise explicit package errors so sketches fail clearly.

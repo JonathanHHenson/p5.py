@@ -19,7 +19,31 @@ jobs:
       - run: uv run mypy src
       - run: uv run python scripts/bump_version.py --check
       - run: uv run pytest
-      - run: uv run python examples/basic_shapes.py --headless --frames 1
+      - run: uv run python examples/01_getting_started/basic_shapes.py --headless --frames 1
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: dtolnay/rust-toolchain@stable
+      - run: uv sync --dev
+      - run: uvx maturin develop --release --manifest-path crates/p5_canvas/Cargo.toml
+      - run: uv run pytest --cov=p5 --cov-report=term-missing --cov-report=xml
+      - name: Add coverage summary
+        run: |
+          {
+            echo "## Coverage"
+            echo
+            uv run coverage report --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
 
   build-python:
     runs-on: ubuntu-latest

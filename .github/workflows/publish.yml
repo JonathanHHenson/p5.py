@@ -53,7 +53,7 @@ jobs:
         run: uv run pytest
 
       - name: Smoke test headless example
-        run: uv run python examples/basic_shapes.py --headless --frames 1
+        run: uv run python examples/01_getting_started/basic_shapes.py --headless --frames 1
 
   build-sdist:
     name: Build source distribution
@@ -155,7 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/p5-py
+      url: https://test.pypi.org/p/p5py-vibe
     permissions:
       id-token: write
     steps:
@@ -179,7 +179,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/p5-py
+      url: https://pypi.org/p/p5py-vibe
     permissions:
       id-token: write
     steps:

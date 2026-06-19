@@ -8,7 +8,8 @@ version = "0.2.5"
 description = "A Pythonic creative coding package inspired by p5.js."
 readme = "README.md"
 requires-python = ">=3.12"
-license-files = ["LICENSE*"]
+license = "LGPL-2.1-only"
+license-files = ["license.txt", "LICENSE*"]
 keywords = ["creative-coding", "graphics", "p5", "p5js", "python"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -30,6 +31,7 @@ media = [
 dev = [
     "mypy>=1.18.2",
     "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
     "ruff>=0.15.17",
 ]
 release = [
