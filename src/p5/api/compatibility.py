@@ -31,6 +31,12 @@ COMPATIBILITY_MATRIX = {
     "sound_synthesis": "deferred",
     "media_playback": "partial",
     "media_capture": "partial",
+    "math_data_environment": "partial",
+    "browser_url_storage": "excluded",
+    "device_sensors": "deferred",
+    "accessibility_output": "deferred",
+    "webgpu": "deferred",
+    "strands_compute": "excluded",
 }
 
 
@@ -85,6 +91,81 @@ def load_table(*_args, **_kwargs) -> None:
         "load_table",
         "p5.Table and p5.TableRow are intentionally excluded.",
     )
+
+
+def get_url(*_args, **_kwargs) -> None:
+    unsupported_feature("get_url", "Browser URL APIs are intentionally excluded; use urllib.parse.")
+
+
+def get_url_path(*_args, **_kwargs) -> None:
+    unsupported_feature(
+        "get_url_path", "Browser URL APIs are intentionally excluded; use urllib.parse."
+    )
+
+
+def get_url_params(*_args, **_kwargs) -> None:
+    unsupported_feature(
+        "get_url_params", "Browser URL APIs are intentionally excluded; use urllib.parse."
+    )
+
+
+def local_storage(*_args, **_kwargs) -> None:
+    unsupported_feature(
+        "local_storage",
+        "Browser localStorage is intentionally excluded; use explicit local files or a database.",
+    )
+
+
+def _deferred_sensor_api(name: str) -> None:
+    unsupported_feature(
+        name,
+        "Device acceleration/orientation APIs are deferred until p5-py has a native "
+        "sensor provider.",
+    )
+
+
+def acceleration_x(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("acceleration_x")
+
+
+def acceleration_y(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("acceleration_y")
+
+
+def acceleration_z(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("acceleration_z")
+
+
+def rotation_x(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("rotation_x")
+
+
+def rotation_y(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("rotation_y")
+
+
+def rotation_z(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("rotation_z")
+
+
+def orientation_x(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("orientation_x")
+
+
+def orientation_y(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("orientation_y")
+
+
+def orientation_z(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("orientation_z")
+
+
+def device_moved(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("device_moved")
+
+
+def device_turned(*_args, **_kwargs) -> None:
+    _deferred_sensor_api("device_turned")
 
 
 def create_camera(*args, **kwargs):
@@ -199,6 +280,21 @@ __all__ = [
     "select",
     "load_xml",
     "load_table",
+    "get_url",
+    "get_url_path",
+    "get_url_params",
+    "local_storage",
+    "acceleration_x",
+    "acceleration_y",
+    "acceleration_z",
+    "rotation_x",
+    "rotation_y",
+    "rotation_z",
+    "orientation_x",
+    "orientation_y",
+    "orientation_z",
+    "device_moved",
+    "device_turned",
     "create_camera",
     "camera",
     "perspective",

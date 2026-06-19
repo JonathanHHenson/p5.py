@@ -72,13 +72,38 @@ class Vector:
     def __len__(self) -> int:
         return 3
 
+    def __getitem__(self, index: int) -> float:
+        if index == 0:
+            return self.x
+        if index == 1:
+            return self.y
+        if index == 2:
+            return self.z
+        raise IndexError("Vector index must be 0, 1, or 2.")
+
+    def __setitem__(self, index: int, value: Number) -> None:
+        if index == 0:
+            self.x = float(value)
+            return
+        if index == 1:
+            self.y = float(value)
+            return
+        if index == 2:
+            self.z = float(value)
+            return
+        raise IndexError("Vector index must be 0, 1, or 2.")
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Vector):
             return NotImplemented
+        return self.equals(other)
+
+    def equals(self, other: Vector | Iterable[Number], *, abs_tol: float = 1e-09) -> bool:
+        ox, oy, oz = _components(other)
         return (
-            math.isclose(self.x, other.x)
-            and math.isclose(self.y, other.y)
-            and math.isclose(self.z, other.z)
+            math.isclose(self.x, ox, abs_tol=abs_tol)
+            and math.isclose(self.y, oy, abs_tol=abs_tol)
+            and math.isclose(self.z, oz, abs_tol=abs_tol)
         )
 
     def copy(self) -> Vector:
@@ -191,6 +216,15 @@ class Vector:
             self.set_mag(max_value)
         return self
 
+    def clamp_to_zero(self, *, abs_tol: float = 1e-12) -> Vector:
+        if abs(self.x) <= abs_tol:
+            self.x = 0.0
+        if abs(self.y) <= abs_tol:
+            self.y = 0.0
+        if abs(self.z) <= abs_tol:
+            self.z = 0.0
+        return self
+
     def heading(self) -> float:
         return p5math.atan2(self.y, self.x)
 
@@ -266,6 +300,34 @@ class Vector:
         target.z = p5math.lerp(target.z, dz, t)
         return target
 
+    @_DualMethod
+    def slerp(
+        self: Vector | None,
+        value: Vector | Iterable[Number],
+        other: Vector | Iterable[Number] | Number,
+        amount: Number | None = None,
+    ) -> Vector:
+        target = Vector(value) if self is None else self
+        if self is None and amount is None:
+            raise TypeError("Vector.slerp() requires an amount when called as a class helper.")
+        operand = Vector(cast(Vector | Iterable[Number], other if self is None else value))
+        t = float(cast(Number, amount if self is None else other))
+        start_mag = target.mag()
+        end_mag = operand.mag()
+        if start_mag == 0 or end_mag == 0:
+            return target.lerp(operand, t)
+        start = target.copy().div(start_mag)
+        end = operand.copy().div(end_mag)
+        dot = max(-1.0, min(1.0, start.dot(end)))
+        theta = math.acos(dot) * t
+        relative = end.sub(start.copy().mult(dot)).normalize()
+        direction = start.mult(math.cos(theta)).add(relative.mult(math.sin(theta)))
+        return target.set(direction.mult(p5math.lerp(start_mag, end_mag, t)))
+
+    def reflect(self, normal: Vector | Iterable[Number]) -> Vector:
+        n = Vector(normal).normalize()
+        return self.sub(n.mult(2 * self.dot(n)))
+
     def __add__(self, other: Vector | Iterable[Number] | Number) -> Vector:
         return self.copy().add(other)
 
@@ -281,6 +343,14 @@ class Vector:
     def __truediv__(self, other: Number) -> Vector:
         return self.copy().div(other)
 
+    def __mod__(self, other: Vector | Iterable[Number] | Number) -> Vector:
+        ox, oy, oz = _components(other)
+        return Vector(self.x % ox, self.y % oy, self.z % oz)
+
+    def rem(self, other: Vector | Iterable[Number] | Number) -> Vector:
+        self.x, self.y, self.z = (self % other).tuple()
+        return self
+
     def __neg__(self) -> Vector:
         return Vector(-self.x, -self.y, -self.z)
 
@@ -290,15 +360,32 @@ class Vector:
         return Vector(math.cos(radians) * float(length), math.sin(radians) * float(length), 0)
 
     @staticmethod
-    def random2d() -> Vector:
+    def from_angles(theta: Number, phi: Number, length: Number = 1) -> Vector:
+        theta_radians = (
+            p5math.radians(theta) if p5math.get_angle_mode() == c.DEGREES else float(theta)
+        )
+        phi_radians = p5math.radians(phi) if p5math.get_angle_mode() == c.DEGREES else float(phi)
+        radius = float(length)
+        sin_phi = math.sin(phi_radians)
+        return Vector(
+            radius * sin_phi * math.cos(theta_radians),
+            radius * sin_phi * math.sin(theta_radians),
+            radius * math.cos(phi_radians),
+        )
+
+    @staticmethod
+    def random_2d() -> Vector:
         return Vector.from_angle(_random.random() * math.tau)
 
     @staticmethod
-    def random3d() -> Vector:
+    def random_3d() -> Vector:
         z = _random.uniform(-1.0, 1.0)
         theta = _random.random() * math.tau
         radius = math.sqrt(1 - z * z)
         return Vector(radius * math.cos(theta), radius * math.sin(theta), z)
+
+    random2d = random_2d
+    random3d = random_3d
 
 
 def create_vector(x: Number = 0, y: Number = 0, z: Number = 0) -> Vector:

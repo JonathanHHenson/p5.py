@@ -123,6 +123,42 @@ def atan2(y: Number, x: Number) -> float:
     return _from_radians(math.atan2(float(y), float(x)))
 
 
+def abs_(value: Number) -> float:
+    return float(builtins.abs(value))
+
+
+def ceil(value: Number) -> int:
+    return math.ceil(float(value))
+
+
+def exp(value: Number) -> float:
+    return math.exp(float(value))
+
+
+def floor(value: Number) -> int:
+    return math.floor(float(value))
+
+
+def log(value: Number, base: Number | None = None) -> float:
+    if base is None:
+        return math.log(float(value))
+    return math.log(float(value), float(base))
+
+
+def pow_(value: Number, exponent: Number) -> float:
+    return math.pow(float(value), float(exponent))
+
+
+def round_(value: Number, ndigits: int | None = None) -> int | float:
+    if ndigits is None:
+        return builtins.round(float(value))
+    return builtins.round(float(value), ndigits)
+
+
+def sqrt(value: Number) -> float:
+    return math.sqrt(float(value))
+
+
 def sq(value: Number) -> float:
     return float(value) * float(value)
 
@@ -157,6 +193,14 @@ __all__ = [
     "acos",
     "atan",
     "atan2",
+    "abs_",
+    "ceil",
+    "exp",
+    "floor",
+    "log",
+    "pow_",
+    "round_",
+    "sqrt",
     "sq",
     "fract",
     "min_value",

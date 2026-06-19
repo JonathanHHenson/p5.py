@@ -2,7 +2,7 @@
 
 This note summarizes a compatibility review against the beta p5.js reference at <https://beta.p5js.org/reference/>. It is intentionally scoped to `p5-py` and the native Python runtime. The sibling `p5.js` repository was not analyzed here because this project should not depend on JavaScript, HTML, DOM APIs, or browser runtime details.
 
-Epic 140 in `backlog/140_reference_gap_closure/` tracks the follow-up work.
+Epic 140 in `backlog/140_reference_gap_closure/` tracks the follow-up work. The durable machine-readable inventory now lives in `docs/technical/reference_compatibility_inventory.toml` and is validated by `tests/unit/test_reference_gap_closure.py`.
 
 ## Compatibility policy
 
@@ -47,14 +47,14 @@ The high-value non-browser 2D gaps are mostly additive APIs on top of existing r
 
 ### Math, data, and environment gaps
 
-Many missing APIs are small compatibility utilities. They should be added only where they reduce porting friction without confusing Python users:
+Many missing APIs are small compatibility utilities. They should be added only where they reduce porting friction without confusing Python users. The first Python-native parity slice adds trailing-underscore names for helpers that would otherwise shadow important Python built-ins, including `abs_`, `pow_`, `round_`, `float_`, `hex_`, `int_`, and `str_`:
 
-- Calculation helpers: p5-style names for `abs`, `ceil`, `exp`, `floor`, `log`, `pow`, `round`, `sqrt`, and careful treatment of `min`, `max`, and `map` because they overlap Python built-ins.
-- Vector parity: indexed accessors, modulo/remainder, equality, clamp-to-zero, spherical interpolation, random 2D/3D constructors, angle constructors, reflection, and string formatting details.
-- Quaternion helpers: axis-angle construction, multiplication, and rotation application, primarily if needed by 3D camera/model workflows.
-- Data conversion/formatting: `boolean`, `byte`, `char`, `float`, `hex`, `int`, `str`, `unchar`, `unhex`, `nf`, `nfc`, `nfp`, `nfs`, `shuffle`, and `split_tokens`.
-- Time/date/environment: `day`, `month`, `year`, `hour`, `minute`, `second`, `get_target_frame_rate`, `window_width`, `window_height`, display dimensions, focus state, cursor/no_cursor, and native behavior for `print`.
-- Browser URL and localStorage helpers should not silently emulate browser state. They should be excluded or mapped to explicit Python-native alternatives with clear documentation.
+- Calculation helpers: `abs_`, `ceil`, `exp`, `floor`, `log`, `pow_`, `round_`, `sqrt`, plus existing `min_value`, `max_value`, and `map_value` / `map`.
+- Vector parity: indexed accessors, modulo/remainder, equality helpers, clamp-to-zero, spherical interpolation, random 2D/3D constructors, angle constructors, and reflection.
+- Quaternion helpers: still classified as deferred until needed by 3D camera/model workflows.
+- Data conversion/formatting: `boolean`, `byte`, `char`, `float_`, `hex_`, `int_`, `str_`, `unchar`, `unhex`, `nf`, `nfc`, `nfp`, `nfs`, `shuffle`, and `split_tokens`.
+- Time/date/environment: `day`, `month`, `year`, `hour`, `minute`, `second`, `get_target_frame_rate`, `window_width`, `window_height`, display dimensions, focus state, and `cursor` / `no_cursor` no-ops until native cursor control exists.
+- Browser URL and localStorage helpers are explicit package-specific stubs (`get_url`, `get_url_path`, `get_url_params`, `local_storage`) and do not silently emulate browser state.
 
 ### Events, accessibility, and IO gaps
 
@@ -85,6 +85,19 @@ These remain intentionally out of scope unless the project policy changes:
 - `p5.Table` and `p5.TableRow`.
 - Browser-only URL, localStorage, pointer-lock, and client-side-save semantics unless a native design is explicitly accepted.
 - Foundation reference pages such as JavaScript `class`, `for`, `function`, `if`, `let`, and JavaScript primitive types. These are educational reference material, not p5-py API targets.
+
+## Follow-on implementation epics
+
+Epic 140 created the compatibility inventory and first Pythonic parity slice. Remaining `partial` and `deferred` features are now tracked by implementation epics:
+
+- `141_math_vector_quaternion_completion`: remaining Vector and quaternion parity.
+- `142_core_2d_canvas_image_completion`: splines, contours, clipping, tinting, canvas pixels, image parity, and frame/GIF export.
+- `143_typography_font_completion`: rich text metrics, text properties, and feasible font outline/path helpers.
+- `144_offscreen_framebuffer_rendering`: `create_graphics`, framebuffer-like APIs, drawing-context alternatives, and `no_canvas` decisions.
+- `145_events_accessibility_io_completion`: native event callbacks, touch, sensors, accessibility metadata, pointer-lock decisions, and local IO helpers.
+- `146_advanced_3d_geometry_camera_lighting`: 3D primitives, geometry objects/export, cameras, debug helpers, lights, materials, and texture modes.
+- `147_shader_webgpu_strands_storage_buffers`: shader object parity, shader variants, WebGPU/strands/storage-buffer/compute decisions.
+- `148_sound_media_completion`: sound/media partial and deferred categories from `COMPATIBILITY_MATRIX` that sit outside the core beta reference page.
 
 ## Epic 140 breakdown
 

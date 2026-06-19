@@ -66,8 +66,33 @@ class Color:
     def __iter__(self):
         return iter(self.to_tuple())
 
+    def with_red(self, red: Number) -> Color:
+        return Color(_to_u8(float(red)), self.g, self.b, self.a)
+
+    def with_green(self, green: Number) -> Color:
+        return Color(self.r, _to_u8(float(green)), self.b, self.a)
+
+    def with_blue(self, blue: Number) -> Color:
+        return Color(self.r, self.g, _to_u8(float(blue)), self.a)
+
     def with_alpha(self, alpha: Number) -> Color:
         return Color(self.r, self.g, self.b, _to_u8(float(alpha)))
+
+    def contrast_ratio(self, other: Color) -> float:
+        first = _relative_luminance(self)
+        second = _relative_luminance(other)
+        lighter = max(first, second)
+        darker = min(first, second)
+        return (lighter + 0.05) / (darker + 0.05)
+
+    def to_hex(self, *, include_alpha: bool = False) -> str:
+        channels = (self.r, self.g, self.b, self.a) if include_alpha else (self.r, self.g, self.b)
+        return "#" + "".join(f"{channel:02x}" for channel in channels)
+
+    def to_rgb_string(self) -> str:
+        if self.a == 255:
+            return f"rgb({self.r}, {self.g}, {self.b})"
+        return f"rgba({self.r}, {self.g}, {self.b}, {self.a / 255:g})"
 
     @classmethod
     def from_args(
@@ -137,6 +162,16 @@ def _parse_color_string(value: str) -> tuple[int, int, int, int]:
     raise ArgumentValidationError(f"Unknown color string {value!r}.")
 
 
+def _relative_luminance(value: Color) -> float:
+    def channel(component: int) -> float:
+        normalized = component / 255.0
+        if normalized <= 0.03928:
+            return normalized / 12.92
+        return ((normalized + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * channel(value.r) + 0.7152 * channel(value.g) + 0.0722 * channel(value.b)
+
+
 def lerp_color(start: Color, stop: Color, amount: Number) -> Color:
     t = float(amount)
     return Color(
@@ -161,3 +196,54 @@ def blue(value: Color) -> int:
 
 def alpha(value: Color) -> int:
     return value.a
+
+
+def hue(value: Color) -> float:
+    h, _l, _s = colorsys.rgb_to_hls(value.r / 255.0, value.g / 255.0, value.b / 255.0)
+    return h * 360.0
+
+
+def saturation(value: Color) -> float:
+    _h, s, _v = colorsys.rgb_to_hsv(value.r / 255.0, value.g / 255.0, value.b / 255.0)
+    return s * 100.0
+
+
+def brightness(value: Color) -> float:
+    _h, _s, v = colorsys.rgb_to_hsv(value.r / 255.0, value.g / 255.0, value.b / 255.0)
+    return v * 100.0
+
+
+def lightness(value: Color) -> float:
+    _h, lightness_value, _s = colorsys.rgb_to_hls(
+        value.r / 255.0,
+        value.g / 255.0,
+        value.b / 255.0,
+    )
+    return lightness_value * 100.0
+
+
+def palette_lerp(palette: Iterable[Color], amount: Number) -> Color:
+    colors = tuple(palette)
+    if not colors:
+        raise ArgumentValidationError("palette_lerp() requires at least one color.")
+    if len(colors) == 1:
+        return colors[0]
+    t = _clamp(float(amount), 0.0, 1.0) * (len(colors) - 1)
+    index = min(len(colors) - 2, int(t))
+    local_t = t - index
+    return lerp_color(colors[index], colors[index + 1], local_t)
+
+
+__all__ = [
+    "Color",
+    "lerp_color",
+    "red",
+    "green",
+    "blue",
+    "alpha",
+    "hue",
+    "saturation",
+    "brightness",
+    "lightness",
+    "palette_lerp",
+]

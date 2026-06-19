@@ -1,0 +1,178 @@
+# Durable p5.js beta reference compatibility inventory for p5-py.
+#
+# Status values: supported, partial, pythonic_equivalent, deferred, excluded,
+# not_applicable. Public p5-py names are snake_case only; browser/DOM-only
+# names are classified but not implemented unless a native Python equivalent is
+# useful and explicit.
+
+[metadata]
+source = "https://beta.p5js.org/reference/"
+policy_doc = "docs/technical/reference_gap_closure.md"
+
+[[entry]]
+reference = "red/green/blue/alpha"
+p5_py = ["red", "green", "blue", "alpha"]
+status = "supported"
+module = "p5.core.color"
+notes = "RGBA component readers over immutable Color values."
+
+[[entry]]
+reference = "hue/saturation/brightness/lightness"
+p5_py = ["hue", "saturation", "brightness", "lightness"]
+status = "supported"
+module = "p5.core.color"
+notes = "Return degree/percentage values from the stored RGB color."
+
+[[entry]]
+reference = "paletteLerp"
+p5_py = ["palette_lerp"]
+status = "supported"
+module = "p5.core.color"
+notes = "Snake_case helper interpolates across a Python iterable of Color values."
+
+[[entry]]
+reference = "abs/ceil/exp/floor/log/pow/round/sqrt"
+p5_py = ["abs_", "ceil", "exp", "floor", "log", "pow_", "round_", "sqrt"]
+status = "pythonic_equivalent"
+module = "p5.core.math"
+notes = "Names that would shadow important Python built-ins use trailing underscore aliases."
+
+[[entry]]
+reference = "boolean/byte/char/float/hex/int/str/unchar/unhex/nf/nfc/nfp/nfs/shuffle/splitTokens"
+p5_py = ["boolean", "byte", "char", "float_", "hex_", "int_", "str_", "unchar", "unhex", "nf", "nfc", "nfp", "nfs", "shuffle", "split_tokens"]
+status = "pythonic_equivalent"
+module = "p5.core.data"
+notes = "Python-native conversions preserve p5-style portability while avoiding surprising built-in shadowing for float, hex, int, and str."
+
+[[entry]]
+reference = "p5.Vector indexed access, rem, equals, clampToZero, slerp, reflect, random2D/random3D, fromAngles"
+p5_py = ["Vector"]
+status = "partial"
+module = "p5.core.vector"
+notes = "Vector includes Python indexing/operators and snake_case methods; camelCase method spellings are compatibility-only class attributes, not package exports."
+
+[[entry]]
+reference = "day/month/year/hour/minute/second/getTargetFrameRate/windowWidth/windowHeight/displayWidth/displayHeight/focused/cursor/noCursor"
+p5_py = ["day", "month", "year", "hour", "minute", "second", "get_target_frame_rate", "window_width", "window_height", "display_width", "display_height", "focused", "cursor", "no_cursor"]
+status = "partial"
+module = "p5.api.global_mode"
+notes = "Native canvas environment equivalents. Cursor APIs are safe no-ops until native backends expose cursor control."
+
+[[entry]]
+reference = "getURL/getURLPath/getURLParams/localStorage"
+p5_py = ["get_url", "get_url_path", "get_url_params", "local_storage"]
+status = "excluded"
+module = "p5.api.compatibility"
+notes = "Browser URL/storage state is intentionally excluded; use urllib.parse or explicit local persistence."
+
+[[entry]]
+reference = "accelerationX/Y/Z, rotationX/Y/Z, pRotationX/Y/Z, deviceMoved/deviceTurned"
+p5_py = ["acceleration_x", "acceleration_y", "acceleration_z", "rotation_x", "rotation_y", "rotation_z", "orientation_x", "orientation_y", "orientation_z", "device_moved", "device_turned"]
+status = "deferred"
+module = "p5.api.compatibility"
+notes = "Native sensor provider not selected. Public stubs raise package-specific errors."
+
+[[entry]]
+reference = "DOM elements, p5.XML, p5.Table, p5.TableRow"
+p5_py = ["create_div", "create_button", "select", "load_xml", "load_table"]
+status = "excluded"
+module = "p5.api.compatibility"
+notes = "Explicit non-goals for p5-py."
+
+[[entry]]
+reference = "spline/splinePoint/splineTangent/splineVertex/splineProperties/beginContour/endContour/normal/vertexProperty"
+p5_py = ["begin_shape", "vertex", "bezier_vertex", "quadratic_vertex", "end_shape"]
+status = "partial"
+module = "p5.api.global_mode"
+notes = "Current renderer supports custom shapes and Beziers. Spline/property/contour APIs require native renderer path semantics before public exposure."
+
+[[entry]]
+reference = "beginClip/clip/endClip/tint/noTint/filter/saveFrames/saveGif"
+p5_py = ["Image", "create_image", "save_canvas"]
+status = "partial"
+module = "p5.assets.image"
+notes = "Image filters and export helpers exist for local image/canvas workflows. Canvas clipping, tint, animated frame export, and GIF controls need Rust canvas semantics."
+
+[[entry]]
+reference = "textBounds/textDirection/textWrap/textWeight/textProperties/textProperty/fontBounds/fontWidth/fontAscent/fontDescent"
+p5_py = ["text", "text_width", "text_ascent", "text_descent", "text_font", "text_style"]
+status = "partial"
+module = "p5.api.global_mode"
+notes = "Basic native text metrics are available. Rich font bounds, wrapping, direction, and batch property APIs remain renderer-dependent."
+
+[[entry]]
+reference = "createGraphics/framebuffer/noCanvas/drawingContext"
+p5_py = []
+status = "deferred"
+module = "p5.backends.canvas"
+notes = "Offscreen graphics and drawing-context escape hatches need a canvas-runtime design that preserves backend/renderer boundaries. noCanvas conflicts with the canvas-required runtime."
+
+[[entry]]
+reference = "mouseClicked/doubleClicked/mouseDragged/mouseMoved/mouseReleased/mouseWheel/keyPressed/keyReleased/keyTyped/window mouse values/code semantics"
+p5_py = ["mouse_x", "mouse_y", "pmouse_x", "pmouse_y", "moved_x", "moved_y", "mouse_is_pressed", "mouse_button", "key", "key_code", "key_is_pressed", "key_is_down"]
+status = "partial"
+module = "p5.events.input_state"
+notes = "Normalized native input state exists. Callback parity depends on canvas runtime event dispatch coverage and remains partial."
+
+[[entry]]
+reference = "touches/touchStarted/touchMoved/touchEnded/pointer lock"
+p5_py = ["touches"]
+status = "partial"
+module = "p5.events.input_state"
+notes = "Touch state is native-runtime backed. Browser pointer lock is excluded unless a native equivalent is deliberately designed."
+
+[[entry]]
+reference = "describe/describeElement/gridOutput/textOutput"
+p5_py = []
+status = "deferred"
+module = "docs"
+notes = "Browser screen-reader DOM output does not map to native canvas. Future work should design metadata/test hooks rather than DOM output."
+
+[[entry]]
+reference = "loadBytes/saveBytes/createWriter/browser Blob client-side save"
+p5_py = ["load_strings", "save_strings", "load_json", "save_json"]
+status = "partial"
+module = "p5.assets.data"
+notes = "Local text and JSON workflows are supported. Bytes/writer helpers are in scope for Python-native local IO; browser Blob/client-side save semantics are excluded."
+
+[[entry]]
+reference = "cone/cylinder/ellipsoid/torus/buildGeometry/createModel/saveObj/saveStl/freeGeometry/p5.Geometry"
+p5_py = ["plane", "box", "sphere", "load_model", "model"]
+status = "partial"
+module = "p5.api.advanced"
+notes = "Current 3D slice supports selected primitives and models. Rich geometry construction/export remains deferred to native 3D milestones."
+
+[[entry]]
+reference = "frustum/setCamera/roll/debugMode/noDebugMode/screenToWorld/worldToScreen"
+p5_py = ["create_camera", "camera", "perspective", "ortho", "orbit_control"]
+status = "partial"
+module = "p5.api.advanced"
+notes = "Basic camera/projection/interaction APIs exist. Coordinate conversion and debug helpers remain deferred."
+
+[[entry]]
+reference = "lights/noLights/spotLight/imageLight/panorama/lightFalloff/specularColor/emissiveMaterial/metalness/textureMode/textureWrap"
+p5_py = ["ambient_light", "directional_light", "point_light", "normal_material", "ambient_material", "specular_material", "shininess", "texture"]
+status = "partial"
+module = "p5.api.advanced"
+notes = "Selected lights/materials/textures are implemented; richer WebGL material and environment APIs remain deferred."
+
+[[entry]]
+reference = "p5.Shader hook inspection/modification/context-copy APIs"
+p5_py = ["load_shader", "create_shader", "shader", "reset_shader"]
+status = "partial"
+module = "p5.assets.shader"
+notes = "Current native shader support does not expose p5.js hook/context-copy semantics; these remain explicitly classified rather than emulated."
+
+[[entry]]
+reference = "WebGPU, p5.strands, storage buffers, compute shaders"
+p5_py = []
+status = "deferred"
+module = "p5.api.compatibility"
+notes = "Deferred unless the Rust canvas runtime grows a safe native GPU abstraction; p5.strands browser-specific semantics are excluded."
+
+[[entry]]
+reference = "JavaScript educational pages"
+p5_py = []
+status = "not_applicable"
+module = "docs"
+notes = "Language tutorial pages are not p5-py library APIs."

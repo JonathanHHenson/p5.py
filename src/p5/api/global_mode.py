@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Any
 
 from p5.api.current import require_context
@@ -12,25 +13,50 @@ from p5.assets.data import load_json, load_strings, save_json, save_strings
 from p5.assets.image import create_image, load_image
 from p5.assets.text import load_font
 from p5.core import geometry as _geometry
+from p5.core.data import (
+    boolean,
+    byte,
+    char,
+    float_,
+    hex_,
+    int_,
+    nf,
+    nfc,
+    nfp,
+    nfs,
+    shuffle,
+    split_tokens,
+    str_,
+    unchar,
+    unhex,
+)
 from p5.core.math import (
+    abs_,
     acos,
     asin,
     atan,
     atan2,
+    ceil,
     constrain,
     cos,
     degrees,
     dist,
+    exp,
+    floor,
     fract,
     lerp,
+    log,
     mag,
     map_value,
     max_value,
     min_value,
     norm,
+    pow_,
     radians,
+    round_,
     sin,
     sq,
+    sqrt,
     tan,
 )
 from p5.core.random import noise, noise_detail, noise_seed, random, random_gaussian, random_seed
@@ -312,6 +338,66 @@ def is_looping() -> bool:
     return require_context().is_looping()
 
 
+def get_target_frame_rate() -> float:
+    return require_context().frame_rate()
+
+
+def day() -> int:
+    return datetime.now().day
+
+
+def month() -> int:
+    return datetime.now().month
+
+
+def year() -> int:
+    return datetime.now().year
+
+
+def hour() -> int:
+    return datetime.now().hour
+
+
+def minute() -> int:
+    return datetime.now().minute
+
+
+def second() -> int:
+    return datetime.now().second
+
+
+def window_width() -> int:
+    return require_context().width
+
+
+def window_height() -> int:
+    return require_context().height
+
+
+def display_width() -> int:
+    context = require_context()
+    return round(context.width * context.display_density())
+
+
+def display_height() -> int:
+    context = require_context()
+    return round(context.height * context.display_density())
+
+
+def focused() -> bool:
+    return True
+
+
+def cursor(_kind: str | None = None) -> None:
+    # Cursor presentation is backend-owned; this is a safe no-op for portable sketches.
+    return None
+
+
+def no_cursor() -> None:
+    # Cursor presentation is backend-owned; this is a safe no-op for portable sketches.
+    return None
+
+
 def mouse_x() -> float:
     return require_context().state.input.mouse_x
 
@@ -503,6 +589,20 @@ __all__ = [
     "loop",
     "redraw",
     "is_looping",
+    "get_target_frame_rate",
+    "day",
+    "month",
+    "year",
+    "hour",
+    "minute",
+    "second",
+    "window_width",
+    "window_height",
+    "display_width",
+    "display_height",
+    "focused",
+    "cursor",
+    "no_cursor",
     "mouse_x",
     "mouse_y",
     "pmouse_x",
@@ -551,6 +651,14 @@ __all__ = [
     "acos",
     "atan",
     "atan2",
+    "abs_",
+    "ceil",
+    "exp",
+    "floor",
+    "log",
+    "pow_",
+    "round_",
+    "sqrt",
     "sq",
     "fract",
     "min_value",
@@ -561,6 +669,21 @@ __all__ = [
     "noise",
     "noise_seed",
     "noise_detail",
+    "boolean",
+    "byte",
+    "char",
+    "float_",
+    "hex_",
+    "int_",
+    "str_",
+    "unchar",
+    "unhex",
+    "nf",
+    "nfc",
+    "nfp",
+    "nfs",
+    "shuffle",
+    "split_tokens",
     "load_pixels",
     "pixels",
     "pixel_array",
