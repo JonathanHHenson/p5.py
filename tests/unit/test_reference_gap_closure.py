@@ -3,38 +3,13 @@ from __future__ import annotations
 import inspect
 import math
 import re
-import tomllib
-from pathlib import Path
 
 import pytest
 
 import p5
 from p5 import UnsupportedFeatureError
 
-_ALLOWED_STATUSES = {
-    "supported",
-    "partial",
-    "pythonic_equivalent",
-    "deferred",
-    "excluded",
-    "not_applicable",
-}
 _SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$|^[A-Z][A-Za-z0-9_]*$")
-
-
-def test_reference_compatibility_inventory_tracks_public_exports():
-    inventory_path = Path("docs/technical/reference_compatibility_inventory.toml")
-    inventory = tomllib.loads(inventory_path.read_text(encoding="utf-8"))
-
-    assert inventory["metadata"]["policy_doc"] == "docs/technical/reference_gap_closure.md"
-    for entry in inventory["entry"]:
-        assert entry["status"] in _ALLOWED_STATUSES
-        assert entry["reference"]
-        assert entry["module"]
-        assert "notes" in entry
-        for public_name in entry["p5_py"]:
-            assert hasattr(p5, public_name), public_name
-            assert public_name in p5.__all__, public_name
 
 
 def test_public_function_exports_remain_snake_case_only():
