@@ -11,7 +11,7 @@ The current package supports a strong 2D-first workflow on the Rust `p5_canvas` 
 The public API is intentionally Python-first:
 
 - canonical APIs use `snake_case`, such as `create_canvas()` and `frame_rate()`
-- p5.js-style aliases such as `createCanvas()` and `frameRate()` delegate to the same implementations
+- the public API is intentionally Pythonic and uses `snake_case` names only
 - excluded browser-only APIs fail with explicit `p5` exceptions instead of failing indirectly
 
 ## Installation
@@ -141,8 +141,8 @@ make build
 
 `p5-py` aims to keep the p5 mental model while remaining idiomatic Python.
 
-- Use the snake_case APIs as the canonical interface.
-- Use camelCase aliases when porting or teaching from p5.js material.
+- Use the snake_case APIs as the only public function interface.
+- Convert p5.js camelCase examples to snake_case when porting or teaching from p5.js material.
 - DOM and browser-only features are excluded.
 - Unsupported compatibility stubs raise explicit package-specific errors.
 

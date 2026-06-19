@@ -1,24 +1,17 @@
 # Compatibility and Pythonic differences
 
-`p5-py` tries to feel familiar to p5.js users without pretending to be a browser runtime.
+`p5-py` borrows p5's sketching model while intentionally presenting an opinionated Pythonic API rather than a browser-compatible API surface.
 
 ## Naming
 
-Canonical Python APIs use `snake_case`:
+Public APIs use `snake_case` only:
 
 - `create_canvas()`
 - `frame_rate()`
 - `no_loop()`
 - `pixel_density()`
 
-Compatibility aliases delegate to the same implementation:
-
-- `createCanvas()`
-- `frameRate()`
-- `noLoop()`
-- `pixelDensity()`
-
-Aliases are for familiarity and migration. The snake_case APIs are the canonical surface.
+p5.js-style camelCase aliases such as `createCanvas()`, `frameRate()`, `noLoop()`, and `pixelDensity()` are intentionally not exported.
 
 ## Same ideas, different runtime
 
@@ -34,7 +27,7 @@ Expected differences from browser p5.js include:
 
 The package intentionally excludes browser-only areas such as:
 
-- DOM element helpers like `createDiv()` and `createButton()`
+- DOM element helpers such as `create_div()` and `create_button()`
 - `p5.XML`
 - `p5.Table` and `p5.TableRow`
 - browser-only APIs with no native Python equivalent
@@ -47,7 +40,7 @@ When porting small p5.js sketches:
 
 1. keep the `setup()`/`draw()` structure
 2. switch imports to `import p5`
-3. prefer snake_case as you touch code
+3. convert p5.js-style camelCase calls to p5-py's snake_case API
 4. replace browser/DOM code with native Python alternatives or remove it
 5. use `headless` for deterministic tests while porting
 

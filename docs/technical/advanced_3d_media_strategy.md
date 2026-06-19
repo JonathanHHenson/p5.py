@@ -80,25 +80,25 @@ A future renderer can consume the same `Camera3D`, `Projection3D`, `Mesh3D`, and
 
 ### Future WEBGL-style public API
 
-The eventual Pythonic public API should prefer snake_case, with p5.js aliases where helpful:
+The public API is intentionally Pythonic and exports snake_case names only:
 
-| Pythonic API | p5.js alias | Status |
-|---|---|---|
-| `create_canvas(width, height, renderer=WEBGL)` | `createCanvas(..., WEBGL)` | Implemented on the software 3D path |
-| `create_camera()` | `createCamera()` | Implemented |
-| `camera(...)` | `camera(...)` | Implemented |
-| `perspective(...)` | `perspective(...)` | Implemented |
-| `ortho(...)` | `ortho(...)` | Implemented |
-| `orbit_control()` | `orbitControl()` | Implemented on interactive backends with mouse drag + wheel input |
-| `ambient_light(...)` | `ambientLight(...)` | Implemented |
-| `directional_light(...)` | `directionalLight(...)` | Implemented |
-| `point_light(...)` | `pointLight(...)` | Implemented |
-| `normal_material()` | `normalMaterial()` | Implemented |
-| `ambient_material(...)` | `ambientMaterial(...)` | Implemented |
-| `specular_material(...)` | `specularMaterial(...)` | Implemented |
-| `shininess(value)` | `shininess(value)` | Implemented |
-| `texture(image)` | `texture(image)` | Implemented as a software-mapped texture path for UV-capable meshes/primitives |
-| `plane(...)`, `box(...)`, `sphere(...)` | same | Implemented |
+| Pythonic API | Status |
+|---|---|
+| `create_canvas(width, height, renderer=WEBGL)` | Implemented on the software 3D path |
+| `create_camera()` | Implemented |
+| `camera(...)` | Implemented |
+| `perspective(...)` | Implemented |
+| `ortho(...)` | Implemented |
+| `orbit_control()` | Implemented on interactive backends with mouse drag + wheel input |
+| `ambient_light(...)` | Implemented |
+| `directional_light(...)` | Implemented |
+| `point_light(...)` | Implemented |
+| `normal_material()` | Implemented |
+| `ambient_material(...)` | Implemented |
+| `specular_material(...)` | Implemented |
+| `shininess(value)` | Implemented |
+| `texture(image)` | Implemented as a software-mapped texture path for UV-capable meshes/primitives |
+| `plane(...)`, `box(...)`, `sphere(...)` | Implemented |
 
 ## Model loading and shader adaptation
 
@@ -212,7 +212,7 @@ Recommendation:
 
 ### Privacy, platform, and dependency implications
 
-Microphone and camera APIs are not simple compatibility aliases for browser APIs:
+Microphone and camera APIs are not simple native equivalents of browser APIs:
 
 - They may trigger macOS, Windows, or Linux permission prompts.
 - Device enumeration and default-device behavior vary by platform.

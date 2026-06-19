@@ -262,7 +262,7 @@ def create_capture(
     normalized_kind = str(kind).strip().lower()
     if normalized_kind in _AUDIO_KINDS | _AUDIO_VIDEO_KINDS:
         raise UnsupportedFeatureError(
-            "create_capture/createCapture microphone input is still deferred in p5-py. "
+            "create_capture microphone input is still deferred in p5-py. "
             "The current staged capture API only supports camera/video capture because "
             "microphone access needs separate permission, device, and buffering work."
         )

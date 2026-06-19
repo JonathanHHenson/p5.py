@@ -6,7 +6,7 @@ I want to create and resize canvases,
 So that sketches can control their drawing area like p5.js.
 '''
 acceptance_criteria = '''
-`create_canvas`, `resize_canvas`, width, height, display dimensions, and pixel density APIs work in headless mode and are prepared for interactive backends. p5.js aliases are available.
+`create_canvas`, `resize_canvas`, width, height, display dimensions, and pixel density APIs work in headless mode and are prepared for interactive backends. Public function names remain snake_case only.
 '''
 priotity = 'high'
 status = 'DONE'

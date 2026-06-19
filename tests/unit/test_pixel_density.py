@@ -28,13 +28,13 @@ def test_global_pixel_density_controls_backing_buffer(tmp_path: Path):
     assert output.exists()
 
 
-def test_pixel_density_alias_and_validation():
+def test_pixel_density_api_and_validation():
     def setup():
-        p5.createCanvas(10, 10)
-        assert p5.pixelDensity() == 1
-        p5.pixelDensity(2)
+        p5.create_canvas(10, 10)
+        assert p5.pixel_density() == 1
+        p5.pixel_density(2)
         assert p5.pixel_density() == 2
-        assert p5.displayDensity() == 1
+        assert p5.display_density() == 1
         with pytest.raises(ArgumentValidationError):
             p5.pixel_density(0)
 

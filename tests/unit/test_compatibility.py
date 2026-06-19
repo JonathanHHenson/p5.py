@@ -6,14 +6,14 @@ from p5 import ArgumentValidationError, UnsupportedFeatureError
 
 def test_dom_apis_are_explicitly_excluded():
     with pytest.raises(UnsupportedFeatureError):
-        p5.createDiv("hello")
+        p5.create_div("hello")
 
 
 def test_table_and_xml_are_explicitly_excluded():
     with pytest.raises(UnsupportedFeatureError):
-        p5.loadXML("data.xml")
+        p5.load_xml("data.xml")
     with pytest.raises(UnsupportedFeatureError):
-        p5.loadTable("data.csv")
+        p5.load_table("data.csv")
 
 
 def test_advanced_3d_and_media_compatibility_matrix_entries_track_partial_and_deferred_status():
@@ -46,4 +46,4 @@ def test_media_stubs_now_fail_with_explicit_runtime_errors(tmp_path):
     missing_video = tmp_path / "missing.mp4"
 
     with pytest.raises(ArgumentValidationError, match="Video file does not exist"):
-        p5.createVideo(missing_video)
+        p5.create_video(missing_video)

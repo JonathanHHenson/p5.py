@@ -71,16 +71,18 @@ class Hero:
         self.animation = Animation(self._idle_animation, 7)
 
     def update(self, platforms: list[Platform]):
-        if p5.keyIsDown(key_code=ord("a")):
+        if p5.key_is_down(key_code=ord("a")):
             self.entity.dx = -self.move_speed
             self.facing_left = True
-        elif p5.keyIsDown(key_code=ord("d")):
+        elif p5.key_is_down(key_code=ord("d")):
             self.entity.dx = self.move_speed
             self.facing_left = False
         else:
             self.entity.dx = 0
 
-        if (p5.keyIsDown(key_code=ord("w")) or p5.keyIsDown(key_code=ord(" "))) and self.on_ground:
+        if (
+            p5.key_is_down(key_code=ord("w")) or p5.key_is_down(key_code=ord(" "))
+        ) and self.on_ground:
             self.entity.dy = -self.jump_speed
             self.on_ground = False
 
@@ -123,7 +125,7 @@ class Hero:
     def draw(self):
         with p5.pushed():
             p5.no_smooth()
-            p5.imageMode(p5.CENTER)
+            p5.image_mode(p5.CENTER)
             if self.facing_left:
                 p5.translate(self.entity.x, self.entity.y)
                 p5.scale(-1, 1)

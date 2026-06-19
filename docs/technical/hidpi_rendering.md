@@ -24,13 +24,7 @@ pixel_density(2)
 display_density()
 ```
 
-p5.js-style aliases are also available:
-
-```python
-pixelDensity()
-pixelDensity(2)
-displayDensity()
-```
+p5.js-style camelCase aliases such as `pixelDensity()` and `displayDensity()` are intentionally not exported.
 
 ## Backend behavior
 

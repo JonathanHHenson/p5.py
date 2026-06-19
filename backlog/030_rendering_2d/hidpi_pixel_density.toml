@@ -22,7 +22,7 @@ Define the logical canvas size versus physical backing-buffer size model for all
 order = 2
 status = 'DONE'
 description = '''
-Add public pixel-density APIs, including `pixel_density`, `display_density`, and p5.js aliases such as `pixelDensity` and `displayDensity`.
+Add public pixel-density APIs, including `pixel_density` and `display_density`, without exporting p5.js-style camelCase aliases.
 '''
 
 [my_pbi.task_3]

@@ -40,8 +40,4 @@ def create_shader(vertex_source: str, fragment_source: str) -> Shader3D:
     return Shader3D(vertex_source=vertex_source, fragment_source=fragment_source)
 
 
-loadShader = load_shader
-createShader = create_shader
-
-
-__all__ = ["create_shader", "createShader", "load_shader", "loadShader"]
+__all__ = ["create_shader", "load_shader"]

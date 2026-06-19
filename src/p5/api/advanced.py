@@ -125,24 +125,6 @@ def create_capture(
     return _create_capture(kind, device=device, width=width, height=height)
 
 
-createCamera = create_camera
-orbitControl = orbit_control
-ambientLight = ambient_light
-directionalLight = directional_light
-pointLight = point_light
-normalMaterial = normal_material
-ambientMaterial = ambient_material
-specularMaterial = specular_material
-loadModel = load_model
-loadShader = load_shader
-createShader = create_shader
-loadSound = load_sound
-createAudio = create_audio
-createVideo = create_video
-createCapture = create_capture
-resetShader = reset_shader
-
-
 __all__ = [
     "Sound",
     "Video",
@@ -150,43 +132,27 @@ __all__ = [
     "ambient_light",
     "orbit_control",
     "ambient_material",
-    "ambientLight",
-    "ambientMaterial",
     "box",
     "camera",
     "create_audio",
     "create_video",
     "create_capture",
     "create_camera",
-    "createAudio",
-    "createVideo",
-    "createCapture",
-    "createCamera",
     "directional_light",
-    "directionalLight",
     "load_model",
     "load_shader",
     "create_shader",
     "shader",
     "reset_shader",
     "load_sound",
-    "loadModel",
-    "loadShader",
-    "createShader",
-    "loadSound",
     "model",
     "normal_material",
-    "normalMaterial",
     "ortho",
     "perspective",
     "texture",
     "plane",
-    "resetShader",
     "point_light",
-    "pointLight",
     "shininess",
     "specular_material",
-    "specularMaterial",
     "sphere",
-    "orbitControl",
 ]

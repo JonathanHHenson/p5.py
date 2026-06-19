@@ -65,11 +65,11 @@ def _deferred_media_api(name: str) -> None:
 
 
 def create_div(*_args, **_kwargs) -> None:
-    unsupported_feature("create_div/createDiv", "DOM APIs are intentionally excluded.")
+    unsupported_feature("create_div", "DOM APIs are intentionally excluded.")
 
 
 def create_button(*_args, **_kwargs) -> None:
-    unsupported_feature("create_button/createButton", "DOM APIs are intentionally excluded.")
+    unsupported_feature("create_button", "DOM APIs are intentionally excluded.")
 
 
 def select(*_args, **_kwargs) -> None:
@@ -77,12 +77,12 @@ def select(*_args, **_kwargs) -> None:
 
 
 def load_xml(*_args, **_kwargs) -> None:
-    unsupported_feature("load_xml/loadXML", "p5.XML is intentionally excluded.")
+    unsupported_feature("load_xml", "p5.XML is intentionally excluded.")
 
 
 def load_table(*_args, **_kwargs) -> None:
     unsupported_feature(
-        "load_table/loadTable",
+        "load_table",
         "p5.Table and p5.TableRow are intentionally excluded.",
     )
 
@@ -191,27 +191,6 @@ def create_capture(*args, **kwargs):
     return _advanced.create_capture(*args, **kwargs)
 
 
-createDiv = create_div
-createButton = create_button
-loadXML = load_xml
-loadTable = load_table
-createCamera = create_camera
-orbitControl = orbit_control
-ambientLight = ambient_light
-directionalLight = directional_light
-pointLight = point_light
-normalMaterial = normal_material
-ambientMaterial = ambient_material
-specularMaterial = specular_material
-loadModel = load_model
-loadShader = load_shader
-createShader = create_shader
-resetShader = reset_shader
-loadSound = load_sound
-createAudio = create_audio
-createVideo = create_video
-createCapture = create_capture
-
 __all__ = [
     "COMPATIBILITY_MATRIX",
     "unsupported_feature",
@@ -246,24 +225,4 @@ __all__ = [
     "create_audio",
     "create_video",
     "create_capture",
-    "createDiv",
-    "createButton",
-    "loadXML",
-    "loadTable",
-    "createCamera",
-    "orbitControl",
-    "ambientLight",
-    "directionalLight",
-    "pointLight",
-    "normalMaterial",
-    "ambientMaterial",
-    "specularMaterial",
-    "loadModel",
-    "loadShader",
-    "createShader",
-    "resetShader",
-    "loadSound",
-    "createAudio",
-    "createVideo",
-    "createCapture",
 ]

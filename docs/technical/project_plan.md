@@ -44,7 +44,7 @@ The public API should make p5.js users feel at home, while still feeling natural
 Examples:
 
 - Prefer `snake_case` names for canonical Python APIs, such as `create_canvas`, `frame_rate`, and `no_loop`.
-- Provide p5.js compatibility aliases where valuable, such as `createCanvas`, `frameRate`, and `noLoop`.
+- Do not export p5.js-style camelCase aliases; the public package surface is intentionally `snake_case` only.
 - Support both global sketch mode and object-oriented sketch mode.
 - Use Python exceptions with helpful messages rather than silent browser-style behavior.
 - Use context managers where they clarify intent, such as `with pushed():`, while still supporting `push()` and `pop()`.
@@ -186,6 +186,8 @@ The 040-060 backlog epics are implemented for the deterministic headless/Pillow 
 The native Pyglet renderer supports image drawing, transformed image pivots, text drawing/metrics, `load_pixels`, `update_pixels`, `blend_mode`, `blend`, `erase`, and `save_canvas` export at physical HiDPI resolution. Normal frames use native Pyglet drawing; pixel/compositing workflows lazily switch to a deterministic parity surface. The headless/Pillow backend remains the simplest deterministic golden-test and non-interactive export path.
 
 Advanced 3D, model/shader, sound, and media work is documented in `docs/technical/advanced_3d_media_strategy.md`. Epic 100 adds backend-agnostic 3D renderer protocol values, a dependency-free wireframe projection prototype, granular compatibility matrix entries, and deferred public stubs for WEBGL/model/shader/sound/media APIs.
+
+A beta p5.js reference gap review is documented in `docs/technical/reference_gap_closure.md`. Epic 140 tracks the remaining missing or partial compatibility areas across core 2D/color/text/image APIs, math/data/environment helpers, events/accessibility/IO behavior, and advanced 3D/WebGPU/shader APIs while preserving the opinionated snake_case-only public API and native-Python exclusions for DOM, browser-only APIs, `p5.XML`, `p5.Table`, and `p5.TableRow`.
 
 ## 6. Runtime design
 
@@ -404,7 +406,7 @@ Documentation should include:
 - Interactive backend.
 - Mouse/keyboard input.
 - Text and images.
-- More p5 compatibility aliases.
+- More p5-inspired snake_case API coverage.
 - Golden image tests.
 
 ### Version 0.3
@@ -432,7 +434,7 @@ Documentation should include:
 | Pixel performance | Medium | Provide NumPy-friendly buffers and Rust acceleration. |
 | Font/text differences across platforms | Medium | Use tolerances in tests and document backend differences. |
 | Overloaded p5 APIs becoming unmaintainable | Medium | Centralize argument parsing and validation. |
-| JavaScript naming conflicting with Python conventions | Medium | Canonical snake_case plus compatibility aliases. |
+| JavaScript naming conflicting with Python conventions | Medium | Export snake_case public APIs only. |
 | Rust complicating installation | Medium | Keep Rust optional with Python fallbacks. |
 
 ## 13. Definition of done for planning phase

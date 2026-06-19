@@ -6,7 +6,7 @@ I want camera, projection, light, material, texture, and primitive APIs,
 So that I can write Python-native 3D sketches with familiar p5.js-inspired controls.
 '''
 acceptance_criteria = '''
-The public API exposes snake_case 3D functions with p5.js aliases where appropriate. Camera/projection, orbit control, light/material, software texture binding, and generated primitives such as `plane`, `box`, and `sphere` work on the current software WEBGL path, are capability-gated elsewhere, and are covered by examples and tests.
+The public API exposes snake_case 3D functions only. Camera/projection, orbit control, light/material, software texture binding, and generated primitives such as `plane`, `box`, and `sphere` work on the current software WEBGL path, are capability-gated elsewhere, and are covered by examples and tests.
 '''
 priotity = 'high'
 status = 'DONE'
@@ -36,5 +36,5 @@ Add generated mesh builders and drawing support for `plane`, `box`, and `sphere`
 order = 4
 status = 'DONE'
 description = '''
-Add p5.js-style aliases, compatibility-matrix updates, and examples/tests that demonstrate the implemented 3D public APIs.
+Add compatibility-matrix updates and examples/tests that demonstrate the implemented snake_case 3D public APIs.
 '''

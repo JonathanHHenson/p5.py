@@ -29,5 +29,5 @@ Create examples for drawing, animation, transforms, color, images, text, input, 
 order = 3
 status = 'DONE'
 description = '''
-Document compatibility aliases, Pythonic differences, unsupported features, and migration guidance.
+Document the snake_case-only API policy, Pythonic differences, unsupported features, and migration guidance.
 '''

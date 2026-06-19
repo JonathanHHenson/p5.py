@@ -9,5 +9,6 @@ These documents are intended for maintainers and contributors working on impleme
 - `docs/technical/rust_acceleration.md`
 - `docs/technical/p5_canvas_rust_backend.md`
 - `docs/technical/advanced_3d_media_strategy.md`
+- `docs/technical/reference_gap_closure.md`
 - `docs/technical/project_plan.md`
 - `docs/technical/epic_101_kt.md`

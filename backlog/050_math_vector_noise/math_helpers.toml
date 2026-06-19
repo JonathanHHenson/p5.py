@@ -22,7 +22,7 @@ Implement non-trivial math helpers and document omitted built-in equivalents.
 order = 2
 status = 'DONE'
 description = '''
-Provide compatibility aliases such as `map` carefully.
+Provide compatibility helper names such as `map` carefully without adding camelCase aliases.
 '''
 
 [my_pbi.task_3]

@@ -39,7 +39,7 @@ src/p5/
 Important areas:
 
 ```text
-src/p5/api/          global-mode API, p5.js aliases, compatibility stubs
+src/p5/api/          global-mode API and compatibility stubs
 src/p5/backends/     backend implementations and backend registry
 src/p5/core/         color, geometry, state, transforms, math-like core systems
 src/p5/drawing/      renderer protocol and drawing abstractions
@@ -106,7 +106,7 @@ For example:
 - A future `PygletRenderer` should own native Pyglet drawing.
 - `PillowRenderer` should remain the deterministic headless/export renderer.
 
-Do not push sketch lifecycle, p5.js aliasing, or argument parsing into backend-specific code.
+Do not push sketch lifecycle, API naming policy, or argument parsing into backend-specific code.
 
 ### Preserve custom backend support
 
@@ -125,16 +125,7 @@ no_loop()
 pixel_density()
 ```
 
-p5.js-style aliases may be provided where useful:
-
-```python
-createCanvas()
-frameRate()
-noLoop()
-pixelDensity()
-```
-
-Aliases must delegate to the same implementation. Do not duplicate behavior.
+Do not export p5.js-style camelCase aliases such as `createCanvas()`, `frameRate()`, `noLoop()`, or `pixelDensity()`. Keep the package intentionally Pythonic and require examples/ports to use snake_case names.
 
 ### Keep exports type-checker friendly
 

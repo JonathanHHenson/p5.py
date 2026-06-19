@@ -29,7 +29,7 @@ Normalize backend mouse events into state updates and callback dispatch.
 order = 3
 status = 'DONE'
 description = '''
-Expose Pythonic properties and p5.js-compatible aliases.
+Expose Pythonic snake_case input accessors and callback names.
 '''
 
 [my_pbi.task_4]
