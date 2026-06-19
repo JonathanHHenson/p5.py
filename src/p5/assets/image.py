@@ -44,16 +44,17 @@ class Image:
                 raise ArgumentValidationError("Image dimensions must be positive.")
             payload = bytes(pixels or b"\x00" * (image_width * image_height * 4))
         else:
-            image_width = int(width.width)
-            image_height = int(width.height)
-            to_rgba_bytes = getattr(width, "to_rgba_bytes", None)
-            tobytes = getattr(width, "tobytes", None)
-            convert = getattr(width, "convert", None)
-            source = convert("RGBA") if callable(convert) else width
+            image_source = cast(_RustP5Image, width)
+            image_width = int(image_source.width)
+            image_height = int(image_source.height)
+            to_rgba_bytes = getattr(image_source, "to_rgba_bytes", None)
+            tobytes = getattr(image_source, "tobytes", None)
+            convert = getattr(image_source, "convert", None)
+            source = convert("RGBA") if callable(convert) else image_source
             if callable(to_rgba_bytes):
                 payload = bytes(to_rgba_bytes())
-            elif callable(getattr(source, "tobytes", None)):
-                payload = bytes(source.tobytes())
+            elif callable(source_tobytes := getattr(source, "tobytes", None)):
+                payload = bytes(source_tobytes())
             elif callable(tobytes):
                 payload = bytes(tobytes())
             else:

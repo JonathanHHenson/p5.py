@@ -7,7 +7,7 @@ name = "p5py_vibe"
 version = "0.2.0"
 description = "A Pythonic creative coding package inspired by p5.js."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"
 license-files = ["LICENSE*"]
 keywords = ["creative-coding", "graphics", "p5", "p5js", "python"]
 classifiers = [
