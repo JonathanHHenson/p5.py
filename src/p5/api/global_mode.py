@@ -9,7 +9,15 @@ from datetime import datetime
 from typing import Any
 
 from p5.api.current import require_context
-from p5.assets.data import load_json, load_strings, save_json, save_strings
+from p5.assets.data import (
+    create_writer,
+    load_bytes,
+    load_json,
+    load_strings,
+    save_bytes,
+    save_json,
+    save_strings,
+)
 from p5.assets.image import create_image, load_image
 from p5.assets.text import load_font
 from p5.core import geometry as _geometry
@@ -630,6 +638,9 @@ __all__ = [
     "load_image",
     "create_image",
     "load_font",
+    "load_bytes",
+    "save_bytes",
+    "create_writer",
     "load_strings",
     "save_strings",
     "load_json",

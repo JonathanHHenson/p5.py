@@ -18,14 +18,17 @@ import p5
 OUTPUT = Path("examples/output/image_text_data.png")
 DATA_PATH = Path("examples/output/image_text_data.json")
 STRINGS_PATH = Path("examples/output/image_text_data.txt")
+BYTES_PATH = Path("examples/output/image_text_data.bin")
+WRITER_PATH = Path("examples/output/image_text_data_writer.txt")
 EXPORT_CANVAS = False
 GENERATED_IMAGE: p5.Image | None = None
 PALETTE: dict[str, Any] = {}
 LABELS: list[str] = []
+BYTE_SAMPLE = b""
 
 
 def setup() -> None:
-    global GENERATED_IMAGE, PALETTE, LABELS
+    global BYTE_SAMPLE, GENERATED_IMAGE, PALETTE, LABELS
 
     p5.create_canvas(720, 420)
     p5.frame_rate(1)
@@ -40,12 +43,24 @@ def setup() -> None:
             [106, 76, 147],
         ],
     }
-    LABELS = ["load_json/save_json", "load_strings/save_strings", "Image pixels", "text metrics"]
+    LABELS = [
+        "load_json/save_json",
+        "load_strings/save_strings",
+        "load_bytes/save_bytes",
+        "create_writer",
+        "Image pixels",
+        "text metrics",
+    ]
 
     p5.save_json(PALETTE, DATA_PATH)
     p5.save_strings(LABELS, STRINGS_PATH)
+    p5.save_bytes([0, 64, 128, 255], BYTES_PATH)
+    with p5.create_writer(WRITER_PATH) as writer:
+        writer.print("p5-py writer output")
+        writer.write("bytes: 00 40 80 ff")
     PALETTE = p5.load_json(DATA_PATH)
     LABELS = p5.load_strings(STRINGS_PATH)
+    BYTE_SAMPLE = p5.load_bytes(BYTES_PATH)
 
     GENERATED_IMAGE = make_generated_image()
 
@@ -90,18 +105,19 @@ def draw() -> None:
     p5.text_leading(24)
     for index, label in enumerate(LABELS):
         p5.fill(26, 32, 44, 220)
-        p5.text(f"{index + 1}. {label}", 44, 336 + index * 20)
+        p5.text(f"{index + 1}. {label}", 44, 294 + index * 20)
 
     sample = "Measured text width"
     width = p5.text_width(sample)
     p5.fill(255, 255, 255, 210)
-    p5.rect(292, 318, width + 28, 42)
+    p5.rect(292, 300, width + 28, 42)
     p5.fill(26, 32, 44)
-    p5.text(sample, 306, 344)
+    p5.text(sample, 306, 326)
 
     p5.fill(26, 32, 44, 180)
     p5.text_size(13)
-    p5.text(f"ascent={p5.text_ascent():.1f}, descent={p5.text_descent():.1f}", 500, 338)
+    p5.text(f"ascent={p5.text_ascent():.1f}, descent={p5.text_descent():.1f}", 500, 320)
+    p5.text(f"bytes={BYTE_SAMPLE.hex(' ')}", 500, 342)
 
     if EXPORT_CANVAS and p5.frame_count() == 0:
         p5.save_canvas(str(OUTPUT))

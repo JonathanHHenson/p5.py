@@ -45,11 +45,11 @@ module = "p5.core.data"
 notes = "Python-native conversions preserve p5-style portability while avoiding surprising built-in shadowing for float, hex, int, and str."
 
 [[entry]]
-reference = "p5.Vector indexed access, rem, equals, clampToZero, slerp, reflect, random2D/random3D, fromAngles"
+reference = "p5.Vector indexed access, angleBetween, setHeading, getValue/setValue, toString, rem, equals, clampToZero, slerp, reflect, random2D/random3D, fromAngles"
 p5_py = ["Vector"]
-status = "partial"
+status = "supported"
 module = "p5.core.vector"
-notes = "Vector includes Python indexing/operators and snake_case methods; camelCase method spellings are compatibility-only class attributes, not package exports."
+notes = "Vector includes Python indexing/operators, snake_case methods, angular helpers, component get/set helpers, string formatting, and compatibility-only class attributes where useful. Public package exports remain snake_case only."
 
 [[entry]]
 reference = "day/month/year/hour/minute/second/getTargetFrameRate/windowWidth/windowHeight/displayWidth/displayHeight/focused/cursor/noCursor"
@@ -130,10 +130,10 @@ notes = "Browser screen-reader DOM output does not map to native canvas. Future 
 
 [[entry]]
 reference = "loadBytes/saveBytes/createWriter/browser Blob client-side save"
-p5_py = ["load_strings", "save_strings", "load_json", "save_json"]
-status = "partial"
+p5_py = ["load_strings", "save_strings", "load_json", "save_json", "load_bytes", "save_bytes", "create_writer"]
+status = "pythonic_equivalent"
 module = "p5.assets.data"
-notes = "Local text and JSON workflows are supported. Bytes/writer helpers are in scope for Python-native local IO; browser Blob/client-side save semantics are excluded."
+notes = "Local text, bytes, JSON, and writer workflows are supported. Browser Blob/client-side save semantics remain excluded."
 
 [[entry]]
 reference = "cone/cylinder/ellipsoid/torus/buildGeometry/createModel/saveObj/saveStl/freeGeometry/p5.Geometry"

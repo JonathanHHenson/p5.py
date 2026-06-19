@@ -91,6 +91,9 @@ def test_math_data_and_vector_gap_helpers():
     assert vector[0] == 1
     vector[1] = 4
     assert vector == p5.Vector(1, 4, 3)
+    assert vector.set_value("x", 2).get_value("x") == 2
+    assert vector.to_string() == "[2, 4, 3]"
+    assert p5.Vector(1, 0).angle_between((0, 1)) == pytest.approx(90)
     assert (p5.Vector(5, 5, 5) % 2) == p5.Vector(1, 1, 1)
     assert p5.Vector(1e-13, 2, 0).clamp_to_zero() == p5.Vector(0, 2, 0)
     assert p5.Vector(1, -1, 0).reflect((0, 1, 0)) == p5.Vector(1, 1, 0)

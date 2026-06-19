@@ -55,7 +55,7 @@ Design and implement accessibility metadata/test hooks for `describe`, `describe
 
 [my_pbi.task_7]
 order = 7
-status = 'TODO'
+status = 'DONE'
 description = '''
 Add Pythonic local IO helpers for bytes and writer workflows, including `load_bytes`, `save_bytes`, `create_writer`, `write`, and `close` semantics where they are useful outside the browser.
 '''

@@ -64,6 +64,9 @@ class Vector:
     def __repr__(self) -> str:
         return f"Vector({self.x:g}, {self.y:g}, {self.z:g})"
 
+    def __str__(self) -> str:
+        return self.to_string()
+
     def __iter__(self):
         yield self.x
         yield self.y
@@ -73,6 +76,8 @@ class Vector:
         return 3
 
     def __getitem__(self, index: int) -> float:
+        if index < 0:
+            index += 3
         if index == 0:
             return self.x
         if index == 1:
@@ -82,6 +87,8 @@ class Vector:
         raise IndexError("Vector index must be 0, 1, or 2.")
 
     def __setitem__(self, index: int, value: Number) -> None:
+        if index < 0:
+            index += 3
         if index == 0:
             self.x = float(value)
             return
@@ -123,6 +130,37 @@ class Vector:
 
     def tuple(self) -> tuple[float, float, float]:
         return self.x, self.y, self.z
+
+    def to_string(self) -> str:
+        return f"[{self.x:g}, {self.y:g}, {self.z:g}]"
+
+    def get_value(self, index: int | str) -> float:
+        if isinstance(index, str):
+            match index:
+                case "x":
+                    return self.x
+                case "y":
+                    return self.y
+                case "z":
+                    return self.z
+                case _:
+                    raise IndexError("Vector component name must be 'x', 'y', or 'z'.")
+        return self[index]
+
+    def set_value(self, index: int | str, value: Number) -> Vector:
+        if isinstance(index, str):
+            match index:
+                case "x":
+                    self.x = float(value)
+                case "y":
+                    self.y = float(value)
+                case "z":
+                    self.z = float(value)
+                case _:
+                    raise IndexError("Vector component name must be 'x', 'y', or 'z'.")
+            return self
+        self[index] = value
+        return self
 
     @_DualMethod
     def add(
@@ -228,6 +266,13 @@ class Vector:
     def heading(self) -> float:
         return p5math.atan2(self.y, self.x)
 
+    def set_heading(self, angle: Number) -> Vector:
+        magnitude = self.mag()
+        radians = p5math.radians(angle) if p5math.get_angle_mode() == c.DEGREES else float(angle)
+        self.x = math.cos(radians) * magnitude
+        self.y = math.sin(radians) * magnitude
+        return self
+
     def rotate(self, angle: Number) -> Vector:
         radians = p5math.radians(angle) if p5math.get_angle_mode() == c.DEGREES else float(angle)
         cosine = math.cos(radians)
@@ -251,6 +296,26 @@ class Vector:
         operand = cast(Vector | Iterable[Number] | Number, other if self is None else value)
         dx, dy, dz = _components(operand, None, z)
         return target.x * dx + target.y * dy + target.z * dz
+
+    @_DualMethod
+    def angle_between(
+        self: Vector | None,
+        value: Vector | Iterable[Number],
+        other: Vector | Iterable[Number] | None = None,
+    ) -> float:
+        target = Vector(value) if self is None else self
+        if self is None and other is None:
+            raise TypeError(
+                "Vector.angle_between() requires two vectors when called as a class helper."
+            )
+        operand = cast(Vector | Iterable[Number], other if self is None else value)
+        ox, oy, oz = _components(operand)
+        mag_product = target.mag() * math.sqrt(ox * ox + oy * oy + oz * oz)
+        if mag_product == 0:
+            return 0.0
+        dot = max(-1.0, min(1.0, (target.x * ox + target.y * oy + target.z * oz) / mag_product))
+        radians = math.acos(dot)
+        return p5math.degrees(radians) if p5math.get_angle_mode() == c.DEGREES else radians
 
     @_DualMethod
     def cross(

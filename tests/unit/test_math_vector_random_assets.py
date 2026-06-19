@@ -31,6 +31,16 @@ def test_vector_instance_and_static_helpers():
     assert vector.mag() == 5
     assert vector.copy().normalize().mag() == pytest.approx(1)
     assert vector.copy().limit(2).mag() == pytest.approx(2)
+    assert vector.copy().set_heading(0) == p5.Vector(5, 0, 0)
+    assert vector.angle_between((0, 4)) == pytest.approx(36.86989764584401)
+    assert p5.Vector.angle_between((1, 0), (0, 1)) == pytest.approx(90)
+    assert p5.Vector().angle_between((1, 0)) == 0
+    vector.set_value("z", 9).set_value(-1, 6)
+    assert vector.get_value("z") == 6
+    assert vector[-1] == 6
+    assert vector.to_string() == "[3, 4, 6]"
+    assert str(vector) == "[3, 4, 6]"
+    vector = p5.create_vector(3, 4)
     assert vector + p5.Vector(1, 2, 3) == p5.Vector(4, 6, 3)
     assert vector.copy().add((1, 1, 1)) == p5.Vector(4, 5, 1)
     assert p5.Vector.add((1, 2), (3, 4)) == p5.Vector(4, 6, 0)
@@ -57,12 +67,22 @@ def test_random_and_noise_are_seedable():
 def test_data_helpers_round_trip(tmp_path: Path):
     strings_path = tmp_path / "lines.txt"
     json_path = tmp_path / "data.json"
+    bytes_path = tmp_path / "data.bin"
+    writer_path = tmp_path / "writer.txt"
 
     p5.save_strings(["alpha", "beta"], strings_path)
     assert p5.load_strings(strings_path) == ["alpha", "beta"]
 
     p5.save_json({"answer": 42}, json_path)
     assert p5.load_json(json_path) == {"answer": 42}
+
+    p5.save_bytes([0, 1, 255], bytes_path)
+    assert p5.load_bytes(bytes_path) == b"\x00\x01\xff"
+
+    with p5.create_writer(writer_path) as writer:
+        writer.write("alpha")
+        writer.print(" beta")
+    assert writer_path.read_text(encoding="utf-8") == "alpha beta\n"
 
 
 def test_load_image_resolves_relative_to_calling_script(tmp_path: Path, monkeypatch):

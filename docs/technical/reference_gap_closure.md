@@ -50,8 +50,8 @@ The high-value non-browser 2D gaps are mostly additive APIs on top of existing r
 Many missing APIs are small compatibility utilities. They should be added only where they reduce porting friction without confusing Python users. The first Python-native parity slice adds trailing-underscore names for helpers that would otherwise shadow important Python built-ins, including `abs_`, `pow_`, `round_`, `float_`, `hex_`, `int_`, and `str_`:
 
 - Calculation helpers: `abs_`, `ceil`, `exp`, `floor`, `log`, `pow_`, `round_`, `sqrt`, plus existing `min_value`, `max_value`, and `map_value` / `map`.
-- Vector parity: indexed accessors, modulo/remainder, equality helpers, clamp-to-zero, spherical interpolation, random 2D/3D constructors, angle constructors, and reflection.
-- Quaternion helpers: still classified as deferred until needed by 3D camera/model workflows.
+- Vector parity: indexed accessors, modulo/remainder, equality helpers, clamp-to-zero, heading and angle-between helpers, component get/set helpers, string formatting, spherical interpolation, random 2D/3D constructors, angle constructors, and reflection.
+- Quaternion helpers: still deferred until a concrete native 3D camera/model workflow requires them. The current public 3D APIs do not need a standalone quaternion object, so adding one now would create API surface without a runtime-backed use case.
 - Data conversion/formatting: `boolean`, `byte`, `char`, `float_`, `hex_`, `int_`, `str_`, `unchar`, `unhex`, `nf`, `nfc`, `nfp`, `nfs`, `shuffle`, and `split_tokens`.
 - Time/date/environment: `day`, `month`, `year`, `hour`, `minute`, `second`, `get_target_frame_rate`, `window_width`, `window_height`, display dimensions, focus state, and `cursor` / `no_cursor` no-ops until native cursor control exists.
 - Browser URL and localStorage helpers are explicit package-specific stubs (`get_url`, `get_url_path`, `get_url_params`, `local_storage`) and do not silently emulate browser state.
@@ -64,7 +64,7 @@ Current mouse/keyboard/touch support is partial. The beta reference includes bro
 - Pointer lock is browser-specific and should remain excluded unless the native window runtime offers an explicit equivalent.
 - Device acceleration/orientation APIs should remain deferred or excluded until a native sensor provider is selected.
 - Accessibility helpers such as `describe`, `describe_element`, `grid_output`, and `text_output` produce browser screen-reader output in p5.js. A native Python equivalent would need a separate design, likely metadata/test hooks rather than DOM output.
-- IO helpers should focus on local file workflows such as text, bytes, JSON, and writer-style output. Browser Blob/client-side save behavior is not a native Python concept.
+- IO helpers focus on local file workflows such as text, bytes, JSON, and writer-style output. Browser Blob/client-side save behavior is not a native Python concept.
 
 ### Advanced 3D, shaders, and WebGPU gaps
 
