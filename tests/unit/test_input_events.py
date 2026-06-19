@@ -2,6 +2,7 @@ import pytest
 
 from p5.backends.canvas import CanvasBackend
 from p5.context import SketchContext
+from p5.core.vector import Vector
 from p5.events.input_state import KeyboardEvent, MouseEvent, TouchEvent, TouchPoint
 from p5.exceptions import BackendCapabilityError
 from p5.plugins.registry import GLOBAL_PLUGIN_REGISTRY
@@ -42,6 +43,11 @@ def test_mouse_state_and_callback_dispatch():
     assert context.mouse_button == "left"
     assert sketch.events == [("mouse_pressed", 10, 12, "left")]
 
+    event = MouseEvent(x=10, y=12, dx=3, dy=4, scroll_y=-1)
+    assert event.position == Vector(10, 12)
+    assert event.delta == Vector(3, 4)
+    assert event.scroll == Vector(0, -1)
+
 
 def test_keyboard_state_key_is_down_and_typed_callback():
     sketch, context = make_context()
@@ -51,6 +57,8 @@ def test_keyboard_state_key_is_down_and_typed_callback():
     assert context.key_code == 65
     assert context.key_is_pressed is True
     assert context.key_is_down(65) is True
+    assert KeyboardEvent(key="a", key_code=65).matches("a")
+    assert KeyboardEvent(key="a", key_code=65).matches(65)
 
     context.dispatch_keyboard_event(KeyboardEvent(key="a", key_code=65, type="key_released"))
     assert context.key_is_pressed is False
@@ -70,6 +78,9 @@ def test_touch_event_updates_when_backend_declares_support():
     touch = context.touches[0]
     assert (touch.x, touch.y) == (4, 5)
     assert (touch.previous_x, touch.previous_y) == (2, 3)
+    assert touch.position == Vector(4, 5)
+    assert touch.previous_position == Vector(2, 3)
+    assert touch.delta == Vector(2, 2)
 
 
 def test_touch_event_reports_capability_error_when_unsupported():

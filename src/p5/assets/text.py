@@ -50,6 +50,10 @@ def load_font(path: str | Path) -> Font:
     return Font(path=font_path)
 
 
+async def load_font_async(path: str | Path) -> Font:
+    return load_font(path)
+
+
 DEFAULT_FONT = Font(name="default")
 
-__all__ = ["Font", "DEFAULT_FONT", "load_font"]
+__all__ = ["Font", "DEFAULT_FONT", "load_font", "load_font_async"]

@@ -2,8 +2,9 @@
 
 ## Canvas
 
-`create_canvas(width, height)` creates the drawing surface. `width()` and
-`height()` return the logical canvas size.
+`create_canvas(width, height)` creates the drawing surface. `p5.current.width`
+and `p5.current.height` return the logical canvas size while a sketch is active.
+The older `width()` and `height()` functions remain available.
 
 ```python
 p5.create_canvas(640, 360)
@@ -22,15 +23,19 @@ p5.no_stroke()
 p5.circle(100, 100, 50)
 ```
 
-Use `push()` and `pop()` to isolate temporary style or transform changes:
+Use `style()` and `transform()` context managers to isolate temporary style or
+transform changes:
 
 ```python
-p5.push()
-p5.translate(200, 100)
-p5.rotate(0.5)
-p5.rect(0, 0, 80, 40)
-p5.pop()
+with p5.style(fill=(255, 0, 0), stroke=None):
+    p5.circle(100, 100, 50)
+
+with p5.transform(translate=(200, 100), rotate=0.5):
+    p5.rect(0, 0, 80, 40)
 ```
+
+`push()` / `pop()` and `with p5.pushed():` are also available when you need
+manual control over the full drawing state stack.
 
 ## Headless Runs
 
@@ -53,3 +58,5 @@ p5.no_loop()
 
 CamelCase p5.js names such as `createCanvas()` are not public p5py APIs.
 
+New examples prefer decorator callbacks, property-style state access, and
+Python data-model conveniences such as vector operators and image indexing.

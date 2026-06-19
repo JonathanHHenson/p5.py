@@ -43,6 +43,15 @@ def load_model(
     return _normalize_model(model) if normalize else model
 
 
+async def load_model_async(
+    path: str | Path,
+    normalize: bool = False,
+    *,
+    package: str | None = None,
+) -> Model3D:
+    return load_model(path, normalize, package=package)
+
+
 def _read_text_asset(path: str | Path, *, package: str | None) -> tuple[str, Path]:
     if package is None:
         source = resolve_asset_path(path)
@@ -240,4 +249,4 @@ def _normalize_model(model: Model3D) -> Model3D:
     return Model3D(meshes=tuple(meshes), source=model.source)
 
 
-__all__ = ["load_model"]
+__all__ = ["load_model", "load_model_async"]

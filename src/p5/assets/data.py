@@ -41,6 +41,10 @@ def load_strings(path: str | Path, *, encoding: str = "utf-8") -> list[str]:
     return resolve_asset_path(path).read_text(encoding=encoding).splitlines()
 
 
+async def load_strings_async(path: str | Path, *, encoding: str = "utf-8") -> list[str]:
+    return load_strings(path, encoding=encoding)
+
+
 def save_strings(
     values: list[str] | tuple[str, ...], path: str | Path, *, encoding: str = "utf-8"
 ) -> None:
@@ -51,12 +55,20 @@ def load_json(path: str | Path, *, encoding: str = "utf-8") -> Any:
     return json.loads(resolve_asset_path(path).read_text(encoding=encoding))
 
 
+async def load_json_async(path: str | Path, *, encoding: str = "utf-8") -> Any:
+    return load_json(path, encoding=encoding)
+
+
 def save_json(value: Any, path: str | Path, *, encoding: str = "utf-8", indent: int = 2) -> None:
     Path(path).write_text(json.dumps(value, indent=indent, ensure_ascii=False), encoding=encoding)
 
 
 def load_bytes(path: str | Path) -> bytes:
     return resolve_asset_path(path).read_bytes()
+
+
+async def load_bytes_async(path: str | Path) -> bytes:
+    return load_bytes(path)
 
 
 def save_bytes(
@@ -72,10 +84,13 @@ def create_writer(path: str | Path, *, encoding: str = "utf-8", append: bool = F
 __all__ = [
     "Writer",
     "load_strings",
+    "load_strings_async",
     "save_strings",
     "load_json",
+    "load_json_async",
     "save_json",
     "load_bytes",
+    "load_bytes_async",
     "save_bytes",
     "create_writer",
 ]

@@ -419,6 +419,32 @@ class Vector:
     def __neg__(self) -> Vector:
         return Vector(-self.x, -self.y, -self.z)
 
+    def __abs__(self) -> float:
+        return self.mag()
+
+    def __matmul__(self, other: Vector | Iterable[Number] | Number) -> float:
+        return self.dot(other)
+
+    def __round__(self, ndigits: int | None = None) -> Vector:
+        if ndigits is None:
+            return Vector(round(self.x), round(self.y), round(self.z))
+        return Vector(
+            round(self.x, ndigits),
+            round(self.y, ndigits),
+            round(self.z, ndigits),
+        )
+
+    def __radd__(self, other: Vector | Iterable[Number] | Number) -> Vector:
+        return self.__add__(other)
+
+    def __rsub__(self, other: Vector | Iterable[Number] | Number) -> Vector:
+        if isinstance(other, int | float):
+            return Vector(other, other, other).sub(self)
+        return Vector(other).sub(self)
+
+    def normalized(self) -> Vector:
+        return self.copy().normalize()
+
     @staticmethod
     def from_angle(angle: Number, length: Number = 1) -> Vector:
         radians = p5math.radians(angle) if p5math.get_angle_mode() == c.DEGREES else float(angle)

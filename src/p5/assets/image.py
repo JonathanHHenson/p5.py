@@ -101,6 +101,30 @@ class Image:
     def pixels(self) -> list[int]:
         return list(self._pixels)
 
+    def __getitem__(self, key: object):
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise TypeError("Image indices must be (x, y) or (x_slice, y_slice).")
+        x_key, y_key = key
+        if isinstance(x_key, slice) or isinstance(y_key, slice):
+            if not isinstance(x_key, slice) or not isinstance(y_key, slice):
+                raise TypeError("Image region access requires two slices.")
+            x, w = self._slice_region(x_key, self.width)
+            y, h = self._slice_region(y_key, self.height)
+            return self._crop(x, y, w, h)
+        return self.get(int(cast(int, x_key)), int(cast(int, y_key)))
+
+    def __setitem__(
+        self,
+        key: object,
+        value: Color | tuple[int, int, int] | tuple[int, int, int, int] | Image,
+    ) -> None:
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise TypeError("Image assignment indices must be (x, y).")
+        x_key, y_key = key
+        if isinstance(x_key, slice) or isinstance(y_key, slice):
+            raise TypeError("Image region assignment is not supported; assign pixels individually.")
+        self.set(int(cast(int, x_key)), int(cast(int, y_key)), value)
+
     def load_pixels(self) -> list[int]:
         return self.pixels
 
@@ -324,6 +348,13 @@ class Image:
         offset = self._offset(x, y)
         self._pixels[offset : offset + 4] = bytes(max(0, min(255, int(value))) for value in rgba)
 
+    @staticmethod
+    def _slice_region(value: slice, size: int) -> tuple[int, int]:
+        start, stop, step = value.indices(size)
+        if step != 1:
+            raise ValueError("Image region slices do not support steps.")
+        return start, max(0, stop - start)
+
 
 def _alpha_over(
     destination: tuple[int, int, int, int],
@@ -355,6 +386,10 @@ def load_image(path: str | Path) -> Image:
     except Exception as exc:
         raise ArgumentValidationError(f"Could not load image {image_path!s}.") from exc
     return Image(rust_image.width, rust_image.height, rust_image.to_rgba_bytes())
+
+
+async def load_image_async(path: str | Path) -> Image:
+    return load_image(path)
 
 
 def create_image(width: int, height: int) -> Image:
@@ -398,4 +433,4 @@ class P5Image:
         self._rust_image.save(str(path))
 
 
-__all__ = ["Image", "P5Image", "load_image", "create_image"]
+__all__ = ["Image", "P5Image", "load_image", "load_image_async", "create_image"]

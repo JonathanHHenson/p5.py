@@ -136,6 +136,10 @@ def load_sound(path: str | Path) -> Sound:
     return Sound(source, path=sound_path)
 
 
+async def load_sound_async(path: str | Path) -> Sound:
+    return load_sound(path)
+
+
 class _AudioSource:
     def __init__(self, *, duration: float | None) -> None:
         self.duration = duration
@@ -211,4 +215,4 @@ def _platform_play_command(path: Path) -> list[str] | None:
     return None
 
 
-__all__ = ["Sound", "load_sound"]
+__all__ = ["Sound", "load_sound", "load_sound_async"]

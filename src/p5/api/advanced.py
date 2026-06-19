@@ -7,12 +7,17 @@ from pathlib import Path
 from p5.api.current import require_context
 from p5.assets.media import Capture, Video
 from p5.assets.media import create_capture as _create_capture
+from p5.assets.media import create_capture_async as _create_capture_async
 from p5.assets.media import create_video as _create_video
+from p5.assets.media import create_video_async as _create_video_async
 from p5.assets.model import load_model as _load_model
+from p5.assets.model import load_model_async as _load_model_async
 from p5.assets.shader import create_shader as _create_shader
 from p5.assets.shader import load_shader as _load_shader
+from p5.assets.shader import load_shader_async as _load_shader_async
 from p5.assets.sound import Sound
 from p5.assets.sound import load_sound as _load_sound
+from p5.assets.sound import load_sound_async as _load_sound_async
 
 
 def create_camera(*args: object):
@@ -139,12 +144,22 @@ def load_model(path: str | Path, normalize: bool = False, *, package: str | None
     return _load_model(path, normalize, package=package)
 
 
+async def load_model_async(
+    path: str | Path, normalize: bool = False, *, package: str | None = None
+):
+    return await _load_model_async(path, normalize, package=package)
+
+
 def model(shape: object) -> None:
     require_context().model(shape)
 
 
 def load_shader(vertex_path: str | Path, fragment_path: str | Path):
     return _load_shader(vertex_path, fragment_path)
+
+
+async def load_shader_async(vertex_path: str | Path, fragment_path: str | Path):
+    return await _load_shader_async(vertex_path, fragment_path)
 
 
 def create_shader(vertex_source: str, fragment_source: str):
@@ -163,12 +178,20 @@ def load_sound(path: str | Path) -> Sound:
     return _load_sound(path)
 
 
+async def load_sound_async(path: str | Path) -> Sound:
+    return await _load_sound_async(path)
+
+
 def create_audio(path: str | Path) -> Sound:
     return _load_sound(path)
 
 
 def create_video(path: str | Path) -> Video:
     return _create_video(path)
+
+
+async def create_video_async(path: str | Path) -> Video:
+    return await _create_video_async(path)
 
 
 def create_capture(
@@ -179,6 +202,16 @@ def create_capture(
     height: int | None = None,
 ) -> Capture:
     return _create_capture(kind, device=device, width=width, height=height)
+
+
+async def create_capture_async(
+    kind: str = "video",
+    *,
+    device: int | str = 0,
+    width: int | None = None,
+    height: int | None = None,
+) -> Capture:
+    return await _create_capture_async(kind, device=device, width=width, height=height)
 
 
 __all__ = [
@@ -192,15 +225,20 @@ __all__ = [
     "camera",
     "create_audio",
     "create_video",
+    "create_video_async",
     "create_capture",
+    "create_capture_async",
     "create_camera",
     "directional_light",
     "load_model",
+    "load_model_async",
     "load_shader",
+    "load_shader_async",
     "create_shader",
     "shader",
     "reset_shader",
     "load_sound",
+    "load_sound_async",
     "model",
     "normal_material",
     "ortho",

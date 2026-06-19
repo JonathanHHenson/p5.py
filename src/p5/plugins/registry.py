@@ -8,6 +8,7 @@ from types import MethodType
 from typing import TYPE_CHECKING, Any
 from weakref import WeakSet
 
+from p5._async import call_maybe_async
 from p5.api.current import require_context
 from p5.plugins.base import (
     EVENT_HOOKS,
@@ -138,7 +139,7 @@ class PluginRegistry:
         for entry in self._entries:
             hook = getattr(entry.plugin, hook_name, None)
             if callable(hook):
-                hook(context)
+                call_maybe_async(hook, context)
 
     def dispatch_event(
         self,
@@ -151,10 +152,10 @@ class PluginRegistry:
         for entry in self._entries:
             general_hook = getattr(entry.plugin, "on_event", None)
             if hook_name != "on_event" and callable(general_hook):
-                general_hook(context, event)
+                call_maybe_async(general_hook, context, event)
             hook = getattr(entry.plugin, hook_name, None)
             if callable(hook):
-                hook(context, event)
+                call_maybe_async(hook, context, event)
 
     def _assert_public_name_available(self, name: str) -> None:
         for module_name in ("p5", "p5.api.global_mode"):

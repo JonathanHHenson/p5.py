@@ -32,6 +32,10 @@ def load_shader(vertex_path: str | Path, fragment_path: str | Path) -> Shader3D:
     )
 
 
+async def load_shader_async(vertex_path: str | Path, fragment_path: str | Path) -> Shader3D:
+    return load_shader(vertex_path, fragment_path)
+
+
 def create_shader(vertex_source: str, fragment_source: str) -> Shader3D:
     if not isinstance(vertex_source, str) or not vertex_source.strip():
         raise ArgumentValidationError("create_shader() requires non-empty vertex shader source.")
@@ -40,4 +44,4 @@ def create_shader(vertex_source: str, fragment_source: str) -> Shader3D:
     return Shader3D(vertex_source=vertex_source, fragment_source=fragment_source)
 
 
-__all__ = ["create_shader", "load_shader"]
+__all__ = ["create_shader", "load_shader", "load_shader_async"]

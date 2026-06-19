@@ -30,6 +30,14 @@
 - `Vector`
 
 Vectors support common arithmetic and geometry operations used by sketches.
+They also implement Python data-model helpers:
+
+```python
+speed = abs(velocity)
+direction = velocity.normalized()
+projection = velocity @ normal
+rounded = round(position, 2)
+```
 
 ## Formatting and Conversion
 
@@ -43,4 +51,3 @@ Vectors support common arithmetic and geometry operations used by sketches.
 - `unhex(value)`
 - `nf(...)`, `nfc(...)`, `nfp(...)`, `nfs(...)`
 - `split_tokens(value, delimiters=None)`
-

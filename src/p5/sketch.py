@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from p5 import constants as c
+from p5._async import call_maybe_async, call_maybe_async_with_optional_args
 from p5.api.current import activate_context
 from p5.backends.registry import create_backend
 from p5.context import SketchContext
@@ -39,13 +40,13 @@ class Sketch:
         self.context: SketchContext | None = None
         self._running = False
 
-    def preload(self) -> None:
+    def preload(self) -> object:
         pass
 
-    def setup(self) -> None:
+    def setup(self) -> object:
         pass
 
-    def draw(self) -> None:
+    def draw(self) -> object:
         pass
 
     def run(
@@ -61,9 +62,9 @@ class Sketch:
         self._running = True
         with activate_context(self.context):
             self.context.plugins.dispatch_lifecycle(LifecycleHookName.BEFORE_PRELOAD, self.context)
-            self.preload()
+            call_maybe_async(self.preload)
             self.context.plugins.dispatch_lifecycle(LifecycleHookName.BEFORE_SETUP, self.context)
-            self.setup()
+            call_maybe_async(self.setup)
             self.context.ensure_canvas()
             self.context.plugins.dispatch_lifecycle(LifecycleHookName.AFTER_SETUP, self.context)
             backend_instance.run(self, max_frames=max_frames)
@@ -86,7 +87,7 @@ class Sketch:
         context.renderer.begin_frame()
         with activate_context(context):
             context.plugins.dispatch_lifecycle(LifecycleHookName.BEFORE_DRAW, context)
-            self.draw()
+            call_maybe_async(self.draw)
             context.plugins.dispatch_lifecycle(LifecycleHookName.AFTER_DRAW, context)
         context.renderer.end_frame()
         context.end_frame()
@@ -96,10 +97,7 @@ class Sketch:
     def _dispatch_callback(self, name: str, event: object) -> None:
         callback = getattr(self, name, None)
         if callable(callback):
-            try:
-                callback(event)
-            except TypeError:
-                callback()
+            call_maybe_async_with_optional_args(callback, event)
 
     # Lifecycle delegates
     def no_loop(self) -> None:
@@ -349,10 +347,10 @@ class FunctionSketch(Sketch):
     def __init__(
         self,
         *,
-        preload: Callable[[], None] | None = None,
-        setup: Callable[[], None] | None = None,
-        draw: Callable[[], None] | None = None,
-        event_callbacks: dict[str, Callable[..., None]] | None = None,
+        preload: Callable[[], object] | None = None,
+        setup: Callable[[], object] | None = None,
+        draw: Callable[[], object] | None = None,
+        event_callbacks: dict[str, Callable[..., object]] | None = None,
         headless: bool | None = None,
     ) -> None:
         super().__init__(headless=headless)
@@ -361,24 +359,95 @@ class FunctionSketch(Sketch):
         self._draw_func = draw
         self._event_callbacks = event_callbacks or {}
 
-    def preload(self) -> None:
+    def preload(self) -> object:
         if self._preload_func is not None:
-            self._preload_func()
+            return self._preload_func()
+        return None
 
-    def setup(self) -> None:
+    def setup(self) -> object:
         if self._setup_func is not None:
-            self._setup_func()
+            return self._setup_func()
+        return None
 
-    def draw(self) -> None:
+    def draw(self) -> object:
         if self._draw_func is not None:
-            self._draw_func()
+            return self._draw_func()
+        return None
 
     def _dispatch_callback(self, name: str, event: object) -> None:
         callback = self._event_callbacks.get(name)
         if callback is None:
             super()._dispatch_callback(name, event)
             return
-        try:
-            callback(event)
-        except TypeError:
-            callback()
+        call_maybe_async_with_optional_args(callback, event)
+
+
+class SketchBuilder:
+    """Decorator-friendly sketch callback registry."""
+
+    def __init__(self, *, headless: bool | None = None) -> None:
+        self.headless = headless
+        self._preload_func: Callable[[], object] | None = None
+        self._setup_func: Callable[[], object] | None = None
+        self._draw_func: Callable[[], object] | None = None
+        self._event_callbacks: dict[str, Callable[..., object]] = {}
+
+    @property
+    def preload_callback(self) -> Callable[[], object] | None:
+        return self._preload_func
+
+    @property
+    def setup_callback(self) -> Callable[[], object] | None:
+        return self._setup_func
+
+    @property
+    def draw_callback(self) -> Callable[[], object] | None:
+        return self._draw_func
+
+    @property
+    def event_callbacks(self) -> dict[str, Callable[..., object]]:
+        return dict(self._event_callbacks)
+
+    def preload(self, callback: Callable[[], object]) -> Callable[[], object]:
+        self._preload_func = callback
+        return callback
+
+    def setup(self, callback: Callable[[], object]) -> Callable[[], object]:
+        self._setup_func = callback
+        return callback
+
+    def draw(self, callback: Callable[[], object]) -> Callable[[], object]:
+        self._draw_func = callback
+        return callback
+
+    def on(self, event_name: str) -> Callable[[Callable[..., object]], Callable[..., object]]:
+        if event_name not in EVENT_CALLBACK_NAMES:
+            raise ValueError(f"Unknown p5 event callback {event_name!r}.")
+
+        def decorator(callback: Callable[..., object]) -> Callable[..., object]:
+            self._event_callbacks[event_name] = callback
+            return callback
+
+        return decorator
+
+    def __getattr__(self, name: str) -> Callable[[Callable[..., object]], Callable[..., object]]:
+        if name in EVENT_CALLBACK_NAMES:
+            return self.on(name)
+        raise AttributeError(name)
+
+    def to_sketch(self, *, headless: bool | None = None) -> FunctionSketch:
+        return FunctionSketch(
+            preload=self._preload_func,
+            setup=self._setup_func,
+            draw=self._draw_func,
+            event_callbacks=self.event_callbacks,
+            headless=self.headless if headless is None else headless,
+        )
+
+    def run(
+        self,
+        *,
+        headless: bool | None = None,
+        max_frames: int | None = None,
+    ) -> SketchContext:
+        return self.to_sketch(headless=headless).run(max_frames=max_frames)

@@ -47,6 +47,11 @@ def test_vector_instance_and_static_helpers():
     assert p5.Vector.dot((1, 2, 3), (4, 5, 6)) == 32
     assert p5.Vector.cross((1, 0, 0), (0, 1, 0)) == p5.Vector(0, 0, 1)
     assert p5.Vector.lerp((0, 0, 0), (10, 20, 30), 0.5) == p5.Vector(5, 10, 15)
+    assert abs(p5.Vector(3, 4)) == 5
+    assert p5.Vector(3, 4).normalized().tuple() == pytest.approx((0.6, 0.8, 0.0))
+    assert p5.Vector(3, 4) @ p5.Vector(2, 0) == 6
+    assert round(p5.Vector(1.234, 5.678), 1).tuple() == (1.2, 5.7, 0.0)
+    assert (10 - p5.Vector(1, 2, 3)).tuple() == (9.0, 8.0, 7.0)
 
 
 def test_spline_helpers_draw_and_measure():
@@ -132,9 +137,15 @@ def test_image_manipulation_and_drawing_with_text(tmp_path: Path):
     asset = p5.create_image(4, 4)
     asset.set(0, 0, p5.Color(255, 0, 0))
     assert asset.get(0, 0) == p5.Color(255, 0, 0, 255)
+    assert asset[0, 0] == p5.Color(255, 0, 0, 255)
+    asset[1, 1] = p5.Color(0, 255, 0)
+    assert asset.get(1, 1) == p5.Color(0, 255, 0, 255)
     region = asset.get(0, 0, 2, 2)
     assert isinstance(region, p5.Image)
     assert region.width == 2
+    indexed_region = asset[0:2, 0:2]
+    assert isinstance(indexed_region, p5.Image)
+    assert indexed_region.width == 2
     asset.resize(8, 0)
     assert asset.width == 8
     assert asset.height == 8

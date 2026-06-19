@@ -6,3 +6,8 @@ This documentation is split by audience:
 - [Reference](reference/index.md): look up public APIs by topic.
 - [Contributor docs](contribute/index.md): understand the codebase, runtime, and
   project workflow.
+
+p5py examples and reference docs favor Python-first APIs: decorator callbacks,
+property-style sketch/input state, context managers for temporary drawing state,
+async-compatible asset loading, and Python data-model helpers for vectors,
+events, and images.

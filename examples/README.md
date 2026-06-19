@@ -2,6 +2,13 @@
 
 These examples are grouped by feature area and all use the current canvas-first runtime.
 
+New examples prefer Pythonic p5py conveniences: decorator callbacks
+(`@p5.setup`, `@p5.draw`, `@p5.on(...)`), property facades such as
+`p5.current` and `p5.mouse`, context managers such as `p5.style(...)` and
+`p5.transform(...)`, and awaitable asset helpers from async callbacks.
+Older examples may still pass callbacks directly to `p5.run(...)`; both forms
+are supported.
+
 Run any sketch interactively:
 
 ```sh

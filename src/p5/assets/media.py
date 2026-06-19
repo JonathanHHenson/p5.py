@@ -252,6 +252,10 @@ def create_video(path: str | Path) -> Video:
     return Video(capture, path=video_path, cv2_module=cv2)
 
 
+async def create_video_async(path: str | Path) -> Video:
+    return create_video(path)
+
+
 def create_capture(
     kind: str = "video",
     *,
@@ -281,6 +285,16 @@ def create_capture(
         )
     _set_capture_dimensions(capture, cv2, width=width, height=height)
     return Capture(capture, device=device, cv2_module=cv2)
+
+
+async def create_capture_async(
+    kind: str = "video",
+    *,
+    device: int | str = 0,
+    width: int | None = None,
+    height: int | None = None,
+) -> Capture:
+    return create_capture(kind, device=device, width=width, height=height)
 
 
 def _set_capture_dimensions(
@@ -362,4 +376,11 @@ def _frame_to_image(frame: Any) -> Image:
     raise BackendCapabilityError("Decoded media frames must have 1, 3, or 4 channels.")
 
 
-__all__ = ["Video", "Capture", "create_video", "create_capture"]
+__all__ = [
+    "Video",
+    "Capture",
+    "create_video",
+    "create_video_async",
+    "create_capture",
+    "create_capture_async",
+]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from p5 import constants as c
+from p5.core.vector import Vector
 from p5.exceptions import BackendCapabilityError
 
 
@@ -20,6 +21,18 @@ class MouseEvent:
     modifiers: int | None = None
     type: str = "mouse"
 
+    @property
+    def position(self) -> Vector:
+        return Vector(self.x, self.y)
+
+    @property
+    def delta(self) -> Vector:
+        return Vector(self.dx, self.dy)
+
+    @property
+    def scroll(self) -> Vector:
+        return Vector(self.scroll_x, self.scroll_y)
+
 
 @dataclass(slots=True)
 class KeyboardEvent:
@@ -27,6 +40,11 @@ class KeyboardEvent:
     key_code: int | None = None
     modifiers: int | None = None
     type: str = "keyboard"
+
+    def matches(self, value: str | int) -> bool:
+        if isinstance(value, int):
+            return self.key_code == value
+        return self.key == value or (len(value) == 1 and self.key_code == ord(value))
 
 
 @dataclass(slots=True)
@@ -40,6 +58,23 @@ class TouchPoint:
     phase: str | None = None
     timestamp: float | None = None
     device: str | None = None
+
+    @property
+    def position(self) -> Vector:
+        return Vector(self.x, self.y)
+
+    @property
+    def previous_position(self) -> Vector | None:
+        if self.previous_x is None or self.previous_y is None:
+            return None
+        return Vector(self.previous_x, self.previous_y)
+
+    @property
+    def delta(self) -> Vector | None:
+        previous = self.previous_position
+        if previous is None:
+            return None
+        return self.position - previous
 
 
 @dataclass(slots=True)

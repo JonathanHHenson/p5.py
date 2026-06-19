@@ -29,6 +29,13 @@
 - `smooth()`
 - `no_smooth()`
 
+Use `style()` to scope temporary style changes:
+
+```python
+with p5.style(fill=(255, 0, 0), stroke=None, stroke_weight=4):
+    p5.circle(100, 100, 50)
+```
+
 ## Transforms
 
 - `push()`
@@ -40,6 +47,16 @@
 - `shear_y(angle)`
 - `reset_matrix()`
 - `apply_matrix(...)`
+
+Use `transform()` to scope temporary transforms:
+
+```python
+with p5.transform(translate=(200, 100), rotate=0.5, scale=1.2):
+    p5.rect(0, 0, 80, 40)
+```
+
+`with p5.pushed():` remains available when you want to group arbitrary style and
+transform calls manually.
 
 ## Text
 
@@ -54,4 +71,3 @@
 - `text_bounds(value, x=0, y=0)`
 - `describe(text)`
 - `describe_element(name, text)`
-

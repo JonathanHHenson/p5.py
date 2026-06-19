@@ -13,14 +13,17 @@ from p5.api.current import require_context
 from p5.assets.data import (
     create_writer,
     load_bytes,
+    load_bytes_async,
     load_json,
+    load_json_async,
     load_strings,
+    load_strings_async,
     save_bytes,
     save_json,
     save_strings,
 )
-from p5.assets.image import create_image, load_image
-from p5.assets.text import load_font
+from p5.assets.image import create_image, load_image, load_image_async
+from p5.assets.text import load_font, load_font_async
 from p5.core import geometry as _geometry
 from p5.core.data import (
     boolean,
@@ -70,16 +73,157 @@ from p5.core.math import (
 )
 from p5.core.random import noise, noise_detail, noise_seed, random, random_gaussian, random_seed
 from p5.core.vector import create_vector
-from p5.sketch import EVENT_CALLBACK_NAMES, FunctionSketch
+from p5.sketch import EVENT_CALLBACK_NAMES, FunctionSketch, SketchBuilder
 
 map = map_value
+
+_DECORATED_SKETCHES: dict[str, SketchBuilder] = {}
+_UNSET = object()
+
+
+class CurrentFacade:
+    @property
+    def width(self) -> int:
+        return require_context().width
+
+    @property
+    def height(self) -> int:
+        return require_context().height
+
+    @property
+    def frame_count(self) -> int:
+        return require_context().frame_count
+
+    @property
+    def delta_time(self) -> float:
+        return require_context().delta_time
+
+    @property
+    def pixel_density(self) -> float:
+        return require_context().pixel_density()
+
+    @property
+    def display_density(self) -> float:
+        return require_context().display_density()
+
+    @property
+    def is_looping(self) -> bool:
+        return require_context().is_looping()
+
+
+class MouseFacade:
+    @property
+    def x(self) -> float:
+        return require_context().mouse_x
+
+    @property
+    def y(self) -> float:
+        return require_context().mouse_y
+
+    @property
+    def previous_x(self) -> float:
+        return require_context().pmouse_x
+
+    @property
+    def previous_y(self) -> float:
+        return require_context().pmouse_y
+
+    @property
+    def moved_x(self) -> float:
+        return require_context().moved_x
+
+    @property
+    def moved_y(self) -> float:
+        return require_context().moved_y
+
+    @property
+    def is_pressed(self) -> bool:
+        return require_context().mouse_is_pressed
+
+    @property
+    def button(self) -> str | None:
+        return require_context().mouse_button
+
+    @property
+    def position(self):
+        return create_vector(self.x, self.y)
+
+    @property
+    def previous_position(self):
+        return create_vector(self.previous_x, self.previous_y)
+
+
+class KeyboardFacade:
+    @property
+    def key(self) -> str | None:
+        return require_context().key
+
+    @property
+    def code(self) -> int | None:
+        return require_context().key_code
+
+    @property
+    def is_pressed(self) -> bool:
+        return require_context().key_is_pressed
+
+    def is_down(self, key_code: int | str) -> bool:
+        if isinstance(key_code, str):
+            if len(key_code) != 1:
+                raise ValueError("keyboard.is_down() string keys must be one character.")
+            context = require_context()
+            return context.key_is_down(ord(key_code.lower())) or context.key_is_down(
+                ord(key_code.upper())
+            )
+        return require_context().key_is_down(key_code)
+
+
+current = CurrentFacade()
+mouse = MouseFacade()
+keyboard = KeyboardFacade()
+
+
+def sketch(*, headless: bool | None = None) -> SketchBuilder:
+    return SketchBuilder(headless=headless)
+
+
+def _module_builder(module_name: str, *, headless: bool | None = None) -> SketchBuilder:
+    builder = _DECORATED_SKETCHES.get(module_name)
+    if builder is None:
+        builder = SketchBuilder(headless=headless)
+        _DECORATED_SKETCHES[module_name] = builder
+    elif headless is not None:
+        builder.headless = headless
+    return builder
+
+
+def _caller_module_name() -> str:
+    current_frame = inspect.currentframe()
+    caller_frame = current_frame.f_back.f_back if current_frame and current_frame.f_back else None
+    caller_globals = caller_frame.f_globals if caller_frame is not None else {}
+    return str(caller_globals.get("__name__", "__main__"))
+
+
+def preload(callback: Callable[[], object]) -> Callable[[], object]:
+    return _module_builder(_caller_module_name()).preload(callback)
+
+
+def setup(callback: Callable[[], object]) -> Callable[[], object]:
+    return _module_builder(_caller_module_name()).setup(callback)
+
+
+def draw(callback: Callable[[], object]) -> Callable[[], object]:
+    return _module_builder(_caller_module_name()).draw(callback)
+
+
+def on(event_name: str) -> Callable[[Callable[..., object]], Callable[..., object]]:
+    return _module_builder(_caller_module_name()).on(event_name)
 
 
 def run(
     *,
-    preload: Callable[[], None] | None = None,
-    setup: Callable[[], None] | None = None,
-    draw: Callable[[], None] | None = None,
+    preload: Callable[[], object] | None = None,
+    setup: Callable[[], object] | None = None,
+    draw: Callable[[], object] | None = None,
     mouse_moved: Callable[..., None] | None = None,
     mouse_dragged: Callable[..., None] | None = None,
     mouse_pressed: Callable[..., None] | None = None,
@@ -100,6 +244,7 @@ def run(
     current_frame = inspect.currentframe()
     caller_frame = current_frame.f_back if current_frame is not None else None
     caller_globals = caller_frame.f_globals if caller_frame is not None else {}
+    decorated = _DECORATED_SKETCHES.get(str(caller_globals.get("__name__", "__main__")))
     explicit_event_callbacks = {
         "mouse_moved": mouse_moved,
         "mouse_dragged": mouse_dragged,
@@ -116,15 +261,26 @@ def run(
         "touch_ended": touch_ended,
         "touch_cancelled": touch_cancelled,
     }
-    event_callbacks: dict[str, Callable[..., None]] = {}
+    event_callbacks: dict[str, Callable[..., object]] = {}
+    decorated_event_callbacks = decorated.event_callbacks if decorated is not None else {}
     for name in EVENT_CALLBACK_NAMES:
-        callback = explicit_event_callbacks[name] or caller_globals.get(name)
+        callback = (
+            explicit_event_callbacks[name]
+            or decorated_event_callbacks.get(name)
+            or caller_globals.get(name)
+        )
         if callable(callback):
             event_callbacks[name] = cast(Callable[..., None], callback)
     sketch = FunctionSketch(
-        preload=preload or caller_globals.get("preload"),
-        setup=setup or caller_globals.get("setup"),
-        draw=draw or caller_globals.get("draw"),
+        preload=preload
+        or (decorated.preload_callback if decorated is not None else None)
+        or caller_globals.get("preload"),
+        setup=setup
+        or (decorated.setup_callback if decorated is not None else None)
+        or caller_globals.get("setup"),
+        draw=draw
+        or (decorated.draw_callback if decorated is not None else None)
+        or caller_globals.get("draw"),
         event_callbacks=event_callbacks,
         headless=headless,
     )
@@ -233,11 +389,19 @@ def no_smooth() -> None:
     require_context().no_smooth()
 
 
-def point(x: float, y: float) -> None:
-    require_context().point(x, y)
+def point(x: object, y: float | None = None) -> None:
+    px, py = _xy(x, y)
+    require_context().point(px, py)
 
 
-def line(x1: float, y1: float, x2: float, y2: float) -> None:
+def line(*args: object) -> None:
+    if len(args) == 2:
+        x1, y1 = _xy(args[0])
+        x2, y2 = _xy(args[1])
+    elif len(args) == 4:
+        x1, y1, x2, y2 = (float(cast(float, value)) for value in args)
+    else:
+        raise TypeError("line() requires two points or four coordinate values.")
     require_context().line(x1, y1, x2, y2)
 
 
@@ -257,12 +421,26 @@ def circle(x: float, y: float, diameter: float) -> None:
     require_context().circle(x, y, diameter)
 
 
-def triangle(*coords: float) -> None:
-    require_context().triangle(*coords)
+def triangle(*coords: object) -> None:
+    if len(coords) == 3:
+        points = [_xy(point) for point in coords]
+        require_context().triangle(*(value for point in points for value in point))
+        return
+    if len(coords) == 6:
+        require_context().triangle(*(float(cast(float, value)) for value in coords))
+        return
+    raise TypeError("triangle() requires three points or six coordinate values.")
 
 
-def quad(*coords: float) -> None:
-    require_context().quad(*coords)
+def quad(*coords: object) -> None:
+    if len(coords) == 4:
+        points = [_xy(point) for point in coords]
+        require_context().quad(*(value for point in points for value in point))
+        return
+    if len(coords) == 8:
+        require_context().quad(*(float(cast(float, value)) for value in coords))
+        return
+    raise TypeError("quad() requires four points or eight coordinate values.")
 
 
 def arc(*args: Any) -> None:
@@ -338,6 +516,95 @@ def pushed():
     context = require_context()
     context.push()
     try:
+        yield
+    finally:
+        context.pop()
+
+
+def _style_color_args(value: object) -> tuple[object, ...]:
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        return tuple(value)
+    return (value,)
+
+
+@contextmanager
+def style(
+    *,
+    fill: object = _UNSET,
+    stroke: object = _UNSET,
+    stroke_weight: float | None = None,
+    stroke_cap: c.StrokeCap | None = None,
+    stroke_join: c.StrokeJoin | None = None,
+    rect_mode: c.ShapeMode | None = None,
+    ellipse_mode: c.ShapeMode | None = None,
+    image_mode: c.ShapeMode | None = None,
+    blend_mode: c.BlendMode | None = None,
+):
+    context = require_context()
+    context.push()
+    try:
+        if fill is None:
+            context.no_fill()
+        elif fill is not _UNSET:
+            context.fill(*_style_color_args(fill))
+        if stroke is None:
+            context.no_stroke()
+        elif stroke is not _UNSET:
+            context.stroke(*_style_color_args(stroke))
+        if stroke_weight is not None:
+            context.stroke_weight(stroke_weight)
+        if stroke_cap is not None:
+            context.stroke_cap(stroke_cap)
+        if stroke_join is not None:
+            context.stroke_join(stroke_join)
+        if rect_mode is not None:
+            context.rect_mode(rect_mode)
+        if ellipse_mode is not None:
+            context.ellipse_mode(ellipse_mode)
+        if image_mode is not None:
+            context.image_mode(image_mode)
+        if blend_mode is not None:
+            context.blend_mode(blend_mode)
+        yield
+    finally:
+        context.pop()
+
+
+def _xy(value: object, y: float | None = None) -> tuple[float, float]:
+    if y is not None:
+        return float(cast(float, value)), float(y)
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        if len(value) != 2:
+            raise ValueError("Expected a 2-item coordinate sequence.")
+        return float(value[0]), float(value[1])
+    x = getattr(value, "x", None)
+    point_y = getattr(value, "y", None)
+    if x is not None and point_y is not None:
+        return float(x), float(point_y)
+    raise TypeError("Expected a vector-like object, 2-item sequence, or x/y pair.")
+
+
+@contextmanager
+def transform(
+    *,
+    translate: object = _UNSET,
+    rotate: float | None = None,
+    scale: object = _UNSET,
+):
+    context = require_context()
+    context.push()
+    try:
+        if translate is not _UNSET:
+            tx, ty = _xy(translate)
+            context.translate(tx, ty)
+        if rotate is not None:
+            context.rotate(rotate)
+        if scale is not _UNSET:
+            if isinstance(scale, Sequence) and not isinstance(scale, str | bytes | bytearray):
+                sx, sy = _xy(scale)
+                context.scale(sx, sy)
+            else:
+                context.scale(float(cast(float, scale)))
         yield
     finally:
         context.pop()
@@ -672,6 +939,14 @@ def no_erase() -> None:
 
 __all__ = [
     "run",
+    "sketch",
+    "preload",
+    "setup",
+    "draw",
+    "on",
+    "current",
+    "mouse",
+    "keyboard",
     "create_canvas",
     "resize_canvas",
     "width",
@@ -722,6 +997,8 @@ __all__ = [
     "push",
     "pop",
     "pushed",
+    "style",
+    "transform",
     "translate",
     "rotate",
     "scale",
@@ -791,14 +1068,19 @@ __all__ = [
     "text_output",
     "grid_output",
     "load_image",
+    "load_image_async",
     "create_image",
     "load_font",
+    "load_font_async",
     "load_bytes",
+    "load_bytes_async",
     "save_bytes",
     "create_writer",
     "load_strings",
+    "load_strings_async",
     "save_strings",
     "load_json",
+    "load_json_async",
     "save_json",
     "load_pixels",
     "update_pixels",

@@ -36,18 +36,20 @@ Create a file named `circle_sketch.py`:
 import p5
 
 
+@p5.setup
 def setup() -> None:
     p5.create_canvas(400, 300)
     p5.no_stroke()
 
 
+@p5.draw
 def draw() -> None:
     p5.background(245)
     p5.fill(255, 90, 90)
     p5.circle(200, 150, 100)
 
 
-p5.run(setup=setup, draw=draw)
+p5.run()
 ```
 
 Run it:
@@ -59,13 +61,28 @@ python circle_sketch.py
 For repeatable scripts, use a bounded headless render:
 
 ```python
-p5.run(setup=setup, draw=draw, headless=True, max_frames=1)
+p5.run(headless=True, max_frames=1)
+```
+
+Callbacks can also be `async def`, which is useful with async-compatible asset
+helpers:
+
+```python
+image = None
+
+
+@p5.preload
+async def preload() -> None:
+    global image
+    image = await p5.load_image_async("sprite.png")
 ```
 
 ## What You Can Make
 
 - 2D drawings with shapes, curves, color, transforms, and blend modes.
 - Animated sketches using the familiar `setup()` and `draw()` lifecycle.
+- Decorator-based sketches, async-compatible callbacks, and object-oriented
+  `Sketch` subclasses.
 - Image and pixel experiments, including canvas export.
 - Text, font measurement, and accessibility descriptions.
 - Interactive sketches with mouse, keyboard, and touch state when native window

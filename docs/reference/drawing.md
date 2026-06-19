@@ -17,6 +17,13 @@
 - `quad(x1, y1, x2, y2, x3, y3, x4, y4)`
 - `arc(...)`
 
+`point`, `line`, `triangle`, and `quad` also accept vector-like point objects:
+
+```python
+p5.line(p5.Vector(10, 20), p5.Vector(90, 80))
+p5.triangle(a, b, c)
+```
+
 ## Paths and Curves
 
 - `begin_shape(kind=None)`
@@ -44,4 +51,3 @@
 - `erase(alpha=255, detail_alpha=255)`
 - `no_erase()`
 - `filter(kind, value=None)`
-

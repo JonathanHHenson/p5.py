@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project Overview
 
-This repository contains `p5-py`, a Pythonic creative-coding package inspired by p5.js.
+This repository contains `p5py`, a Pythonic creative-coding package inspired by p5.js. The current package distribution name is `p5py_vibe` / `p5py-vibe`.
 
 The project keeps the familiar p5 sketch lifecycle and p5-style drawing model while staying native Python at the public API boundary, typed, testable, backend-agnostic for sketch authors, and packaged around the required Rust `p5_canvas` runtime.
 
@@ -45,7 +45,7 @@ uv run ruff check .
 uv run ruff format .
 uv run mypy src
 uv run pytest
-uv run python examples/basic_shapes.py --headless --frames 1
+uv run python examples/01_getting_started/basic_shapes.py --headless --frames 1
 ```
 
 Useful Make targets mirror the same workflow:
@@ -122,9 +122,10 @@ tests/golden/        deterministic render comparisons
 tests/integration/   end-to-end sketch/rendering behavior
 tests/benchmark/     opt-in performance tests
 examples/            runnable sketches and smoke-test entry points
-docs/user/           user-facing documentation
-docs/technical/      architecture, testing, release, and migration notes
-backlog/             TOML PBIs grouped by numbered epic
+docs/getting_started/ user learning path and first-sketch material
+docs/reference/      public API reference grouped by topic
+docs/contribute/     architecture, runtime, testing, and maintainer workflow
+.scratch/backlog/             TOML PBIs grouped by numbered epic
 crates/              Rust runtime and acceleration crates
 ```
 
@@ -146,6 +147,26 @@ pixel_density()
 Do not export p5.js-style camelCase aliases such as `createCanvas()`, `frameRate()`, `noLoop()`, or `pixelDensity()`. Convert examples and ports to `snake_case`.
 
 `src/p5/__init__.py` should keep explicit imports and explicit `__all__` entries so Zed/Pyright and other static tooling can see package attributes.
+
+Prefer Pythonic convenience APIs in user-facing examples and docs when they improve clarity:
+
+- decorator sketches: `@p5.setup`, `@p5.draw`, `@p5.on("key_pressed")`, or `app = p5.sketch()`
+- property facades: `p5.current.width`, `p5.mouse.position`, `p5.keyboard.is_down("a")`
+- context managers: `with p5.style(...):`, `with p5.transform(...):`, and `with p5.pushed():`
+- Python protocols: vector operators, event vector properties, and image indexing where appropriate
+
+Keep the older function-passing and direct state-function APIs working for compatibility, but do not make them the only documented path for new Python-first examples.
+
+Async-compatible lifecycle callbacks are supported. `preload`, `setup`, `draw`, event callbacks, and plugin hooks may be `async def`. Async asset helpers such as `load_image_async`, `load_json_async`, `load_model_async`, and `load_sound_async` are awaitable compatibility wrappers over the current canvas-owned runtime. Do not move Rust canvas-owned objects or active `SketchContext` state to arbitrary worker threads when extending async behavior; the canvas runtime is not generally thread-sendable.
+
+Public closed-set values should be modeled as enums, not untyped constants. Keep p5-style uppercase public names such as `CENTER`, `WEBGL`, and `BLEND` as enum members exported from `src/p5/constants.py`, and expose the enum classes for type annotations. Prefer `StrEnum` for string-valued drawing/API modes and `IntEnum` only where numeric semantics are part of the public API, such as keyboard key codes.
+
+When adding or changing enum-backed public values:
+
+- update annotations at the API boundary and internal state objects to use the enum type rather than `str` or `int`
+- keep `src/p5/__init__.py` explicit imports and `__all__` entries in sync
+- update `docs/reference/constants_and_enums.md` and any topic-specific reference docs that mention the value
+- avoid reintroducing loose `Literal[...]` or raw constant groups when a reusable enum better expresses the closed set
 
 ### Preserve Sketch Lifecycle Ownership
 
@@ -175,14 +196,14 @@ For the current implementation this means:
 
 ### Preserve HiDPI Semantics
 
-p5-py distinguishes logical canvas dimensions from physical backing-buffer dimensions.
+p5py distinguishes logical canvas dimensions from physical backing-buffer dimensions.
 
 - `width()` and `height()` report logical p5 dimensions.
 - `pixel_density()` controls physical backing scale.
 - `display_density()` reports native display scale when available.
 - `load_pixels()` and `update_pixels()` operate on physical top-left-oriented RGBA buffers.
 
-Do not regress Retina/HiDPI behavior when changing runtime, renderer, pixels, export, images, or input coordinate handling. See `docs/technical/hidpi_rendering.md`.
+Do not regress Retina/HiDPI behavior when changing runtime, renderer, pixels, export, images, or input coordinate handling. See `docs/contribute/runtime.md`.
 
 ### Keep Compatibility Explicit
 
@@ -206,7 +227,7 @@ Current Python project dependencies are intentionally minimal:
 
 - core runtime dependencies are supplied by the packaged Rust canvas extension
 - optional media support uses the `media` extra
-- dev tools include `pytest`, `ruff`, and `mypy`
+- dev tools include `pytest`, `pytest-cov`, `ruff`, and `mypy`
 - release tooling uses `maturin`
 
 Add Python dependencies only when justified, and use `uv add` or `uv add --dev` so `pyproject.toml` and `uv.lock` stay in sync.
@@ -226,7 +247,7 @@ Also run when relevant:
 
 ```sh
 uv run mypy src
-uv run python examples/basic_shapes.py --headless --frames 1
+uv run python examples/01_getting_started/basic_shapes.py --headless --frames 1
 cargo test --manifest-path crates/p5_canvas/Cargo.toml
 uv run python scripts/bump_version.py --check
 uv build
@@ -241,7 +262,13 @@ uv run ruff format .
 For rendering changes, run at least one bounded/headless smoke test:
 
 ```sh
-uv run python examples/basic_shapes.py --headless --frames 1
+uv run python examples/01_getting_started/basic_shapes.py --headless --frames 1
+```
+
+For coverage reporting:
+
+```sh
+uv run pytest --cov=p5 --cov-report=term-missing --cov-report=xml
 ```
 
 For native interactive changes, run a representative example with `--interactive` on a desktop build when practical and document any manual validation.
@@ -275,16 +302,22 @@ Update docs when changing architecture, public APIs, runtime behavior, rendering
 Relevant docs include:
 
 ```text
-docs/user/backends.md
-docs/user/compatibility.md
-docs/user/images_and_pixels.md
-docs/technical/canvas_required_runtime.md
-docs/technical/canvas_migration_release.md
-docs/technical/hidpi_rendering.md
-docs/technical/p5_canvas_rust_backend.md
-docs/technical/rust_acceleration.md
-docs/technical/testing.md
-docs/technical/project_plan.md
+docs/getting_started/index.md
+docs/getting_started/installation.md
+docs/getting_started/core_concepts.md
+docs/reference/index.md
+docs/reference/lifecycle.md
+docs/reference/drawing.md
+docs/reference/assets_and_pixels.md
+docs/reference/input_and_events.md
+docs/reference/constants_and_enums.md
+docs/reference/compatibility.md
+docs/contribute/index.md
+docs/contribute/architecture.md
+docs/contribute/backend_renderer.md
+docs/contribute/runtime.md
+docs/contribute/testing.md
+docs/contribute/documentation.md
 ```
 
 ## Backlog Conventions
@@ -302,8 +335,7 @@ Backlog epics use a three-digit prefix to allow insertion between epics, for exa
 Each PBI file uses this TOML shape:
 
 ```toml
-[my_pbi]
-title = "..."
+[<pbi_title>]
 description = '''
 As a ...,
 I want ...,
@@ -312,18 +344,16 @@ So that ...
 acceptance_criteria = '''
 ...
 '''
-priotity = 'high|medium|low'
+priority = 'high|medium|low'
 status = 'TODO|IN_PROGRESS|DONE'
 
-[my_pbi.task_1]
+[<pbi_title>.<task_title>]
 order = 1
 status = 'TODO|IN_PROGRESS|DONE'
 description = '''
 ...
 '''
 ```
-
-The schema intentionally uses the misspelled key `priotity`. Preserve it unless the user explicitly requests a schema migration.
 
 When completing work that corresponds to backlog items, update both the parent PBI status and task statuses.
 
@@ -338,7 +368,7 @@ DONE
 Validate backlog TOML after edits:
 
 ```sh
-uv run python -c "from pathlib import Path; import tomllib; [tomllib.load(p.open('rb')) for p in sorted(Path('backlog').glob('**/*.toml'))]; print('Backlog TOML parsed successfully')"
+uv run python -c "from pathlib import Path; import tomllib; [tomllib.load(p.open('rb')) for p in sorted(Path('.scratch/backlog').glob('**/*.toml'))]; print('Backlog TOML parsed successfully')"
 ```
 
 ## Safety Notes

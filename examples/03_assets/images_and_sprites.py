@@ -20,20 +20,23 @@ METEOR: p5.Image | None = None
 SHIELD: p5.Image | None = None
 
 
-def preload() -> None:
+@p5.preload
+async def preload() -> None:
     global SHIP, UFO, METEOR, SHIELD
-    SHIP = p5.load_image(ASSETS / "playerShip1_blue.png")
-    UFO = p5.load_image(ASSETS / "ufoBlue.png")
-    METEOR = p5.load_image(ASSETS / "Meteors/meteorGrey_big1.png")
-    SHIELD = p5.load_image(ASSETS / "Effects/shield3.png")
+    SHIP = await p5.load_image_async(ASSETS / "playerShip1_blue.png")
+    UFO = await p5.load_image_async(ASSETS / "ufoBlue.png")
+    METEOR = await p5.load_image_async(ASSETS / "Meteors/meteorGrey_big1.png")
+    SHIELD = await p5.load_image_async(ASSETS / "Effects/shield3.png")
 
 
+@p5.setup
 def setup() -> None:
     p5.create_canvas(760, 420)
     p5.image_mode(p5.CENTER)
     p5.no_smooth()
 
 
+@p5.draw
 def draw() -> None:
     assert SHIP is not None and UFO is not None and METEOR is not None and SHIELD is not None
     p5.background(9, 13, 28)
@@ -42,9 +45,10 @@ def draw() -> None:
         p5.point((i * 97) % 760, (i * 53) % 420)
 
     p5.no_stroke()
-    with p5.pushed():
-        p5.translate(190, 210)
-        p5.rotate(-0.28 + math.sin(p5.frame_count() * 0.04) * 0.08)
+    with p5.transform(
+        translate=p5.Vector(190, 210),
+        rotate=-0.28 + math.sin(p5.current.frame_count * 0.04) * 0.08,
+    ):
         p5.image(SHIELD, 0, 0, 142, 142)
         p5.image(SHIP, 0, 0, 104, 78)
 
@@ -55,8 +59,8 @@ def draw() -> None:
     p5.text(f"ship asset: {SHIP.width}x{SHIP.height}", 32, 36)
     p5.text("image_mode(CENTER), no_smooth(), transformed draw", 32, 392)
 
-    save_once(ARGS, p5.frame_count(), p5.save_canvas)
+    save_once(ARGS, p5.current.frame_count, p5.save_canvas)
 
 
 if __name__ == "__main__":
-    p5.run(preload=preload, setup=setup, draw=draw, headless=ARGS.headless, max_frames=ARGS.frames)
+    p5.run(headless=ARGS.headless, max_frames=ARGS.frames)

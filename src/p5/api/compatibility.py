@@ -600,12 +600,20 @@ def load_model(*args, **kwargs):
     return _advanced.load_model(*args, **kwargs)
 
 
+async def load_model_async(*args, **kwargs):
+    return await _advanced.load_model_async(*args, **kwargs)
+
+
 def model(*args, **kwargs) -> None:
     _advanced.model(*args, **kwargs)
 
 
 def load_shader(*args, **kwargs):
     return _advanced.load_shader(*args, **kwargs)
+
+
+async def load_shader_async(*args, **kwargs):
+    return await _advanced.load_shader_async(*args, **kwargs)
 
 
 def create_shader(*args, **kwargs):
@@ -684,6 +692,10 @@ def load_sound(*args, **kwargs):
     return _advanced.load_sound(*args, **kwargs)
 
 
+async def load_sound_async(*args, **kwargs):
+    return await _advanced.load_sound_async(*args, **kwargs)
+
+
 def create_audio(*args, **kwargs):
     return _advanced.create_audio(*args, **kwargs)
 
@@ -692,8 +704,16 @@ def create_video(*args, **kwargs):
     return _advanced.create_video(*args, **kwargs)
 
 
+async def create_video_async(*args, **kwargs):
+    return await _advanced.create_video_async(*args, **kwargs)
+
+
 def create_capture(*args, **kwargs):
     return _advanced.create_capture(*args, **kwargs)
+
+
+async def create_capture_async(*args, **kwargs):
+    return await _advanced.create_capture_async(*args, **kwargs)
 
 
 def create_amplitude(*_args, **_kwargs) -> None:
@@ -837,8 +857,10 @@ __all__ = [
     "save_obj",
     "save_stl",
     "load_model",
+    "load_model_async",
     "model",
     "load_shader",
+    "load_shader_async",
     "create_shader",
     "shader",
     "reset_shader",
@@ -857,9 +879,12 @@ __all__ = [
     "dispatch_compute",
     "strands",
     "load_sound",
+    "load_sound_async",
     "create_audio",
     "create_video",
+    "create_video_async",
     "create_capture",
+    "create_capture_async",
     "create_amplitude",
     "create_fft",
     "create_audio_in",

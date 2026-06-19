@@ -20,3 +20,11 @@ Reference topics:
 
 Function names use Python `snake_case`. p5.js-style camelCase names are not
 public APIs.
+
+Python-first conveniences are part of the public API:
+
+- decorator callbacks with `@p5.setup`, `@p5.draw`, and `@p5.on(...)`
+- property facades such as `p5.current`, `p5.mouse`, and `p5.keyboard`
+- context managers such as `p5.style(...)` and `p5.transform(...)`
+- async-compatible lifecycle callbacks and asset loaders
+- vector operators, event vector properties, and image indexing

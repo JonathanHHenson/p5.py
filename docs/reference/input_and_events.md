@@ -20,6 +20,24 @@ native window.
 - `touches()`
 - `focused()`
 
+## Property Facades
+
+The `p5.mouse` and `p5.keyboard` facades provide property-style access while a
+sketch callback is active:
+
+- `p5.mouse.x`
+- `p5.mouse.y`
+- `p5.mouse.position`
+- `p5.mouse.previous_position`
+- `p5.mouse.moved_x`
+- `p5.mouse.moved_y`
+- `p5.mouse.is_pressed`
+- `p5.mouse.button`
+- `p5.keyboard.key`
+- `p5.keyboard.code`
+- `p5.keyboard.is_pressed`
+- `p5.keyboard.is_down(code_or_character)`
+
 ## Callback Names
 
 Define callbacks on a function-mode sketch module or on a `Sketch` subclass:
@@ -41,3 +59,12 @@ Define callbacks on a function-mode sketch module or on a `Sketch` subclass:
 
 Callbacks may also be declared without an event parameter.
 
+Event objects expose Python-friendly helpers:
+
+- `MouseEvent.position`
+- `MouseEvent.delta`
+- `MouseEvent.scroll`
+- `KeyboardEvent.matches(value)`
+- `TouchPoint.position`
+- `TouchPoint.previous_position`
+- `TouchPoint.delta`
