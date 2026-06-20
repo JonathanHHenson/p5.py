@@ -277,7 +277,13 @@ Benchmark tests are opt-in:
 
 ```sh
 uv run pytest tests/benchmark/test_canvas_backend_perf.py --run-benchmarks
+uv run pytest tests/benchmark/test_api_overhead_perf.py --run-benchmarks
 ```
+
+Canvas benchmark scenarios must average at least 120 FPS. Treat failures below
+that floor as optimization work, not as flaky thresholds to loosen. Baseline
+snapshots live in `tests/benchmark/baselines/`; keep captured baseline values as
+measured and record whether they meet the 120 FPS floor.
 
 Check Zed diagnostics when practical.
 

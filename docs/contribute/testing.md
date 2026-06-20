@@ -40,6 +40,49 @@ Use focused checks while developing, then broaden before handing off:
 - `tests/integration/`: end-to-end sketch behavior.
 - `tests/benchmark/`: opt-in performance tests.
 
+## Performance Benchmarks
+
+Runtime performance checks live under `tests/benchmark/` and are skipped unless
+explicitly requested:
+
+```sh
+uv run pytest tests/benchmark/test_canvas_backend_perf.py --run-benchmarks
+uv run pytest tests/benchmark/test_api_overhead_perf.py --run-benchmarks
+```
+
+The canvas backend benchmarks require the `p5.rust._canvas` extension and run in
+bounded headless mode, so they do not open a native window. Each run reports
+frames per second plus the canvas size, pixel density, backend mode, Python
+version, and platform. Every canvas benchmark scenario must average at least
+120 FPS. A below-threshold failure is an optimization signal, not a reason to
+loosen the benchmark.
+
+Use the suite when changing renderer hot paths, image upload/cache behavior,
+pixel readback/update behavior, text measurement, frame scheduling, or native
+canvas packaging. The current scenarios cover sparse and dense primitive
+drawing, cached image drawing, per-frame image upload churn, mixed text/pixel
+readback work, a deterministic game-style scene, and a WEBGL-style 3D prototype
+scene.
+
+The API overhead microbenchmarks use a no-op renderer/backend and do not require
+the canvas extension. They report nanoseconds per call for global-mode,
+object-oriented sketch, context-direct, and renderer-direct paths so Python
+dispatch overhead can be compared separately from renderer work.
+
+Checked-in baseline snapshots live in `tests/benchmark/baselines/` as TOML.
+Each baseline records the command, machine/configuration, commit, canvas size,
+pixel density, backend mode, frame count or iteration count, and whether GPU
+availability is known. Canvas baselines also record the required 120 FPS floor
+and whether each captured scenario met it. To compare an optimization branch,
+run the same command on the same machine, compare each scenario's mean/min/max
+against the matching baseline, and describe material changes as percentages. Do
+not compare absolute FPS or nanosecond values across different machines, OS
+versions, Python versions, build modes, or power/thermal states.
+
+Do not edit baseline numbers upward to satisfy the target. Keep captured values
+as measured and let benchmark assertions fail until the implementation reaches
+the required floor.
+
 ## Test Style
 
 Prefer deterministic tests:
@@ -105,5 +148,5 @@ If you edit backlog items, preserve the existing `priotity` key spelling and
 validate the files:
 
 ```sh
-uv run python -c "from pathlib import Path; import tomllib; [tomllib.load(p.open('rb')) for p in sorted(Path('backlog').glob('**/*.toml'))]; print('Backlog TOML parsed successfully')"
+uv run python -c "from pathlib import Path; import tomllib; [tomllib.load(p.open('rb')) for p in sorted(Path('.scratch/backlog').glob('**/*.toml'))]; print('Backlog TOML parsed successfully')"
 ```

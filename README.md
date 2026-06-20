@@ -123,6 +123,17 @@ workflow, and release shape in more detail:
 - [Runtime model](docs/contribute/runtime.md)
 - [Testing and CI](docs/contribute/testing.md)
 
+Performance benchmarks are opt-in:
+
+```sh
+uv run pytest tests/benchmark/test_canvas_backend_perf.py --run-benchmarks
+uv run pytest tests/benchmark/test_api_overhead_perf.py --run-benchmarks
+```
+
+Canvas benchmark scenarios are expected to average at least 120 FPS. Failures
+below that floor are intentional optimization signals. Machine-specific baseline
+snapshots live in `tests/benchmark/baselines/`.
+
 ## Compatibility
 
 `p5py` is inspired by p5.js, but it is not a browser port. It does not include
