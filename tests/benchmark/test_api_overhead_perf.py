@@ -154,6 +154,7 @@ def _build_cases(sketch: Sketch, context: SketchContext, image: p5.Image) -> lis
     renderer = context.renderer
     style = context.state.style
     transform = Matrix2D()
+    fast = context.fast()
 
     return [
         ApiBenchmarkCase("global", "fill", lambda: p5.fill(16, 32, 48, 192)),
@@ -169,6 +170,10 @@ def _build_cases(sketch: Sketch, context: SketchContext, image: p5.Image) -> lis
         ApiBenchmarkCase("context", "circle", lambda: context.circle(24, 24, 12)),
         ApiBenchmarkCase("context", "image", lambda: context.image(image, 8, 8, 16, 16)),
         ApiBenchmarkCase("context", "text_width", lambda: context.text_width("dispatch")),
+        ApiBenchmarkCase("fast", "line", lambda: fast.line(1, 2, 40, 50)),
+        ApiBenchmarkCase("fast", "circle", lambda: fast.circle(24, 24, 12)),
+        ApiBenchmarkCase("fast", "image", lambda: fast.image(image, 8, 8, 16, 16)),
+        ApiBenchmarkCase("fast", "text_width", lambda: fast.text_width("dispatch")),
         ApiBenchmarkCase(
             "renderer",
             "line",
@@ -208,3 +213,7 @@ def test_api_dispatch_microbenchmarks() -> None:
             f"max_ns={summary.max_ns:.1f} iterations={ITERATIONS} repeats={REPEATS}"
         )
         assert summary.mean_ns > 0
+
+    by_case = {(summary.layer, summary.operation): summary for summary in summaries}
+    for operation in ("line", "circle", "image", "text_width"):
+        assert by_case[("fast", operation)].mean_ns < by_case[("global", operation)].mean_ns

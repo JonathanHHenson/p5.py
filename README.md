@@ -96,6 +96,10 @@ Loaded images keep their Rust-managed asset until you mutate pixels, so normal
 For pixel effects, `load_pixels()` keeps the compatibility list API and
 `load_pixel_bytes()` provides a bytes readback path; `update_pixels()` accepts
 lists and buffer-like inputs such as `bytes`, `bytearray`, and `memoryview`.
+For dense drawing loops, `p5.fast()` returns a frame-local facade that keeps
+public style/transform state while reducing global-mode dispatch overhead.
+Opt-in `enable_performance_diagnostics()` counters can identify readback, pixel
+conversion, upload, texture cache, and CPU compositing fallback paths.
 
 ## Learn More
 
@@ -127,6 +131,7 @@ workflow, and release shape in more detail:
 - [Contributor guide](docs/contribute/index.md)
 - [Architecture](docs/contribute/architecture.md)
 - [Runtime model](docs/contribute/runtime.md)
+- [API performance policy](docs/contribute/api_performance_policy.md)
 - [Testing and CI](docs/contribute/testing.md)
 
 Performance benchmarks are opt-in:

@@ -24,6 +24,22 @@ p5.line(p5.Vector(10, 20), p5.Vector(90, 80))
 p5.triangle(a, b, c)
 ```
 
+For dense loops, bind the frame-local fast facade once and call its strict
+coordinate methods:
+
+```python
+def draw():
+    p5.background(245)
+    draw_fast = p5.fast()
+    for x, y, dx, dy in vectors:
+        draw_fast.line(x, y, x + dx, y + dy)
+```
+
+`fast()` keeps current public style and transform state, including surrounding
+`style()`, `transform()`, and `pushed()` context managers. It skips global-mode
+context lookup and flexible vector-like argument normalization, so it is meant
+for hot loops rather than as the only style for simple sketches.
+
 ## Paths and Curves
 
 - `begin_shape(kind=None)`

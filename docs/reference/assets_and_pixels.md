@@ -53,6 +53,19 @@ for performance-sensitive readback when a bytes-like RGBA buffer is enough.
 `update_pixels()` accepts the list returned by `load_pixels()` and efficient
 buffer-like inputs such as `bytes`, `bytearray`, and `memoryview`.
 
+Performance diagnostics can be enabled when investigating slow pixel or image
+paths:
+
+```python
+p5.enable_performance_diagnostics()
+pixels = p5.load_pixels()
+report = p5.performance_diagnostics()
+```
+
+The report contains counters and short public-language messages for readback,
+pixel list conversion, pixel upload, texture upload/cache hits, and CPU
+compositing fallback helpers such as canvas `get()`, `set()`, and `filter()`.
+
 ## Export
 
 - `save_canvas(path=None)`

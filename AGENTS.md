@@ -158,8 +158,11 @@ Prefer Pythonic convenience APIs in user-facing examples and docs when they impr
 - property facades: `p5.current.width`, `p5.mouse.position`, `p5.keyboard.is_down("a")`
 - context managers: `with p5.style(...):`, `with p5.transform(...):`, and `with p5.pushed():`
 - Python protocols: vector operators, event vector properties, and image indexing where appropriate
+- dense-loop fast path: `p5.fast()` / `Sketch.fast()` for hot drawing loops where repeated global-mode dispatch would dominate
 
 Keep the older function-passing and direct state-function APIs working for compatibility, but do not make them the only documented path for new Python-first examples.
+
+`p5.fast()` is a public frame-local facade, not a Rust escape hatch. It should preserve the current public style/transform state and compose with `style()`, `transform()`, and `pushed()` while reducing context lookup and flexible argument-normalization overhead for dense 2D primitive/image/text loops.
 
 Async-compatible lifecycle callbacks are supported. `preload`, `setup`, `draw`, event callbacks, and plugin hooks may be `async def`. Async asset helpers such as `load_image_async`, `load_json_async`, `load_model_async`, and `load_sound_async` are awaitable compatibility wrappers over the current canvas-owned runtime. Do not move Rust canvas-owned objects or active `SketchContext` state to arbitrary worker threads when extending async behavior; the canvas runtime is not generally thread-sendable.
 
@@ -296,6 +299,8 @@ Canvas benchmark scenarios must average at least 120 FPS. Treat failures below
 that floor as optimization work, not as flaky thresholds to loosen. Baseline
 snapshots live in `tests/benchmark/baselines/`; keep captured baseline values as
 measured and record whether they meet the 120 FPS floor.
+API overhead benchmarks should compare global-mode, object-oriented sketch,
+context-direct, `fast()`, and renderer-direct dispatch paths.
 
 Check Zed diagnostics when practical.
 

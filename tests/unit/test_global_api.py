@@ -112,6 +112,71 @@ def test_image_sampling_api():
     p5.run(setup=setup, draw=lambda: None, headless=True, max_frames=0)
 
 
+def test_fast_draw_scope_composes_with_style_and_transform_contexts():
+    def setup():
+        p5.create_canvas(16, 16)
+        p5.background(0, 0, 0, 255)
+        p5.no_stroke()
+        with p5.style(fill=(255, 0, 0, 255)), p5.transform(translate=(4, 0)):
+            draw = p5.fast()
+            draw.rect(0, 0, 4, 4)
+
+    context = p5.run(setup=setup, headless=True, max_frames=0)
+    pixels = context.load_pixels()
+
+    def pixel_at(x: int, y: int) -> list[int]:
+        offset = (y * context.state.canvas.physical_width + x) * 4
+        return pixels[offset : offset + 4]
+
+    assert pixel_at(0, 0) == [0, 0, 0, 255]
+    assert pixel_at(4, 0) == [255, 0, 0, 255]
+
+
+def test_fast_draw_scope_is_available_on_object_oriented_sketches():
+    class FastSketch(p5.Sketch):
+        def setup(self):
+            self.create_canvas(8, 8)
+
+        def draw(self):
+            self.background(0)
+            self.no_stroke()
+            self.fill(255)
+            self.fast().circle(4, 4, 4)
+
+    context = FastSketch(headless=True).run(max_frames=1)
+
+    assert context.load_pixels()[0:4] == [0, 0, 0, 255]
+    assert any(value == 255 for value in context.load_pixels())
+
+
+def test_performance_diagnostics_are_opt_in_and_use_public_terms():
+    image = p5.create_image(1, 1)
+    image.update_pixels(bytes([255, 0, 0, 255]))
+
+    def setup():
+        p5.create_canvas(2, 1)
+        p5.image(image, 0, 0)
+        assert p5.performance_diagnostics()["counters"] == {}
+        p5.enable_performance_diagnostics()
+        p5.image(image, 0, 0)
+        p5.image(image, 1, 0)
+        p5.load_pixels()
+        p5.update_pixels(bytes([0, 0, 0, 255, 255, 0, 0, 255]))
+
+    context = p5.run(setup=setup, headless=True, max_frames=0)
+    diagnostics = context.performance_diagnostics()
+    counters = diagnostics["counters"]
+    messages = "\n".join(diagnostics["messages"])
+
+    assert diagnostics["enabled"] is True
+    assert counters["texture_upload"] == 1
+    assert counters["texture_cache_hit"] == 1
+    assert counters["pixel_readback"] >= 1
+    assert counters["pixel_upload"] == 1
+    assert "Pixel readback" in messages
+    assert "Rust" not in messages
+
+
 def test_global_mode_async_callbacks_are_awaited():
     events = []
 

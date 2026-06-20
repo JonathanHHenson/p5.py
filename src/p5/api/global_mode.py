@@ -319,6 +319,22 @@ def display_density() -> float:
     return require_context().display_density()
 
 
+def fast():
+    return require_context().fast()
+
+
+def enable_performance_diagnostics(enabled: bool = True, *, reset: bool = True) -> None:
+    require_context().enable_performance_diagnostics(enabled, reset=reset)
+
+
+def reset_performance_diagnostics() -> None:
+    require_context().reset_performance_diagnostics()
+
+
+def performance_diagnostics() -> dict[str, object]:
+    return require_context().performance_diagnostics()
+
+
 def background(*args: object) -> None:
     require_context().background(*args)
 
@@ -959,6 +975,10 @@ __all__ = [
     "height",
     "pixel_density",
     "display_density",
+    "fast",
+    "enable_performance_diagnostics",
+    "reset_performance_diagnostics",
+    "performance_diagnostics",
     "background",
     "clear",
     "color",

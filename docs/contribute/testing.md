@@ -68,8 +68,10 @@ game-style scene, and a WEBGL-style 3D prototype scene.
 
 The API overhead microbenchmarks use a no-op renderer/backend and do not require
 the canvas extension. They report nanoseconds per call for global-mode,
-object-oriented sketch, context-direct, and renderer-direct paths so Python
-dispatch overhead can be compared separately from renderer work.
+object-oriented sketch, context-direct, `fast()` facade, and renderer-direct
+paths so Python dispatch overhead can be compared separately from renderer
+work. The `fast()` cases should remain below equivalent global-mode dispatch
+for dense-loop operations.
 
 The image pipeline benchmarks measure image-local operations such as region
 copy, resize, mask, filter, get, and set, plus list-based and bytes-based pixel

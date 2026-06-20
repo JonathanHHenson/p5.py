@@ -67,6 +67,129 @@ if TYPE_CHECKING:
     from p5.plugins.registry import PluginRegistry
 
 _MATERIAL_UNSET = object()
+_PERFORMANCE_DIAGNOSTIC_MESSAGE_LIMIT = 64
+
+_PERFORMANCE_DIAGNOSTIC_MESSAGES = {
+    "cpu_compositing_fallback": (
+        "CPU compositing fallback: this operation reads the canvas into a Python Image "
+        "and writes pixels back. Prefer renderer-native drawing APIs in animation loops."
+    ),
+    "pixel_list_conversion": (
+        "Pixel list conversion: this path materializes RGBA bytes as a Python list. "
+        "Use load_pixel_bytes() when a bytes-like buffer is enough."
+    ),
+    "pixel_readback": (
+        "Pixel readback: this operation reads the current canvas pixels back to Python. "
+        "Avoid it per frame unless the sketch really needs pixel data."
+    ),
+    "pixel_upload": (
+        "Pixel upload: this operation sends a full RGBA buffer back to the canvas. "
+        "Use bytes-like inputs for lower Python overhead."
+    ),
+    "texture_cache_hit": "Image texture cache hit: the image version was already seen.",
+    "texture_upload": (
+        "Texture upload/cache miss: the image was new or mutated since the last draw. "
+        "Reuse Image objects and avoid update_pixels() on images drawn every frame."
+    ),
+}
+
+
+class FastDrawScope:
+    """Frame-local facade for dense drawing loops.
+
+    The facade keeps the public p5 state model, but avoids global-mode context
+    lookups and vector/argument normalization on the hottest 2D calls.
+    """
+
+    __slots__ = ("_context",)
+
+    def __init__(self, context: SketchContext) -> None:
+        self._context = context
+
+    @property
+    def width(self) -> int:
+        return self._context.width
+
+    @property
+    def height(self) -> int:
+        return self._context.height
+
+    def point(self, x: float, y: float) -> None:
+        context = self._context
+        context.renderer.point(
+            float(x),
+            float(y),
+            context.state.style,
+            context.state.transform.matrix,
+        )
+
+    def line(self, x1: float, y1: float, x2: float, y2: float) -> None:
+        context = self._context
+        context.renderer.line(
+            float(x1),
+            float(y1),
+            float(x2),
+            float(y2),
+            context.state.style,
+            context.state.transform.matrix,
+        )
+
+    def rect(self, x: float, y: float, width: float, height: float | None = None) -> None:
+        context = self._context
+        h = width if height is None else height
+        rx, ry, rw, rh = resolve_rect(
+            context.state.style.rect_mode,
+            float(x),
+            float(y),
+            float(width),
+            float(h),
+        )
+        context.renderer.rect(
+            rx,
+            ry,
+            rw,
+            rh,
+            context.state.style,
+            context.state.transform.matrix,
+        )
+
+    def square(self, x: float, y: float, size: float) -> None:
+        self.rect(x, y, size, size)
+
+    def ellipse(self, x: float, y: float, width: float, height: float | None = None) -> None:
+        context = self._context
+        h = width if height is None else height
+        ex, ey, ew, eh = resolve_ellipse(
+            context.state.style.ellipse_mode,
+            float(x),
+            float(y),
+            float(width),
+            float(h),
+        )
+        context.renderer.ellipse(
+            ex,
+            ey,
+            ew,
+            eh,
+            context.state.style,
+            context.state.transform.matrix,
+        )
+
+    def circle(self, x: float, y: float, diameter: float) -> None:
+        self.ellipse(x, y, diameter, diameter)
+
+    def image(self, image: Image | P5Image, x: float, y: float, *args: float) -> None:
+        self._context._draw_image_fast(image, x, y, *args)
+
+    def text(self, value: object, x: float, y: float) -> None:
+        context = self._context
+        context.renderer.text(
+            str(value), float(x), float(y), context.state.style, context.state.transform.matrix
+        )
+
+    def text_width(self, value: object) -> float:
+        context = self._context
+        return context.renderer.text_width(str(value), context.state.style)
 
 
 class SketchContext:
@@ -96,6 +219,10 @@ class SketchContext:
         self._text_wrap = "word"
         self._text_weight = 400
         self._accessibility_descriptions: list[dict[str, str]] = []
+        self._performance_diagnostics_enabled = False
+        self._performance_diagnostic_counts: dict[str, int] = {}
+        self._performance_diagnostic_messages: list[str] = []
+        self._performance_diagnostic_image_versions: dict[int, int] = {}
 
     @property
     def width(self) -> int:
@@ -184,6 +311,40 @@ class SketchContext:
 
     def display_density(self) -> float:
         return self.backend.display_density()
+
+    def fast(self) -> FastDrawScope:
+        return FastDrawScope(self)
+
+    def enable_performance_diagnostics(self, enabled: bool = True, *, reset: bool = True) -> None:
+        self._performance_diagnostics_enabled = bool(enabled)
+        if reset:
+            self.reset_performance_diagnostics()
+
+    def reset_performance_diagnostics(self) -> None:
+        self._performance_diagnostic_counts.clear()
+        self._performance_diagnostic_messages.clear()
+        self._performance_diagnostic_image_versions.clear()
+
+    def performance_diagnostics(self) -> dict[str, object]:
+        return {
+            "enabled": self._performance_diagnostics_enabled,
+            "counters": dict(self._performance_diagnostic_counts),
+            "messages": list(self._performance_diagnostic_messages),
+        }
+
+    def _record_performance_diagnostic(self, name: str) -> None:
+        if not self._performance_diagnostics_enabled:
+            return
+        self._performance_diagnostic_counts[name] = (
+            self._performance_diagnostic_counts.get(name, 0) + 1
+        )
+        message = _PERFORMANCE_DIAGNOSTIC_MESSAGES.get(name)
+        if (
+            message is not None
+            and message not in self._performance_diagnostic_messages
+            and len(self._performance_diagnostic_messages) < _PERFORMANCE_DIAGNOSTIC_MESSAGE_LIMIT
+        ):
+            self._performance_diagnostic_messages.append(message)
 
     def begin_frame(self) -> None:
         if self.state.canvas.renderer == c.WEBGL:
@@ -989,6 +1150,9 @@ class SketchContext:
                 )
 
     def image(self, image: Image | P5Image, x: float, y: float, *args: float) -> None:
+        self._draw_image_fast(image, x, y, *args)
+
+    def _draw_image_fast(self, image: Image | P5Image, x: float, y: float, *args: float) -> None:
         if not isinstance(image, Image | P5Image):
             raise ArgumentValidationError("image() requires a p5 Image or P5Image object.")
         w: float
@@ -1018,6 +1182,7 @@ class SketchContext:
         dx, dy, dw, dh = resolve_rect(
             self.state.style.image_mode, float(x), float(y), float(w), float(h)
         )
+        self._record_image_diagnostics(image)
         self.renderer.draw_image(
             image,
             dx,
@@ -1028,6 +1193,16 @@ class SketchContext:
             self.state.transform.matrix,
             source=source,
         )
+
+    def _record_image_diagnostics(self, image: Image | P5Image) -> None:
+        if not self._performance_diagnostics_enabled or not isinstance(image, Image):
+            return
+        cached_version = self._performance_diagnostic_image_versions.get(image.cache_key)
+        if cached_version == image.version:
+            self._record_performance_diagnostic("texture_cache_hit")
+        else:
+            self._record_performance_diagnostic("texture_upload")
+            self._performance_diagnostic_image_versions[image.cache_key] = image.version
 
     def text(self, value: object, x: float, y: float) -> None:
         self.renderer.text(
@@ -1195,17 +1370,26 @@ class SketchContext:
         return self.text_output()
 
     def load_pixels(self) -> list[int]:
+        self._record_performance_diagnostic("pixel_readback")
+        self._record_performance_diagnostic("pixel_list_conversion")
         pixels = self.renderer.load_pixels()
         self.pixels = pixels
         return pixels
 
     def load_pixel_bytes(self) -> bytes:
+        self._record_performance_diagnostic("pixel_readback")
+        self._record_performance_diagnostic("pixel_list_conversion")
         pixels = self.renderer.load_pixel_bytes()
         self.pixels = list(pixels)
         return pixels
 
     def update_pixels(self, pixels: Sequence[int] | Buffer | None = None) -> None:
+        self._record_performance_diagnostic("pixel_upload")
         if pixels is not None:
+            if isinstance(pixels, Sequence) and not isinstance(
+                pixels, bytes | bytearray | memoryview
+            ):
+                self._record_performance_diagnostic("pixel_list_conversion")
             self.pixels = pixels if isinstance(pixels, Sequence) else bytes(pixels)
         if not self.pixels:
             self.load_pixels()
@@ -1273,6 +1457,7 @@ class SketchContext:
         self.update_pixels(self.pixels)
 
     def _canvas_image(self) -> Image:
+        self._record_performance_diagnostic("cpu_compositing_fallback")
         pixels = self.load_pixels()
         return Image(
             self.state.canvas.physical_width,

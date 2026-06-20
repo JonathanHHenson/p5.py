@@ -117,6 +117,18 @@ class Sketch:
     def display_density(self) -> float:
         return self._ctx.display_density()
 
+    def fast(self):
+        return self._ctx.fast()
+
+    def enable_performance_diagnostics(self, enabled: bool = True, *, reset: bool = True) -> None:
+        self._ctx.enable_performance_diagnostics(enabled, reset=reset)
+
+    def reset_performance_diagnostics(self) -> None:
+        self._ctx.reset_performance_diagnostics()
+
+    def performance_diagnostics(self) -> dict[str, object]:
+        return self._ctx.performance_diagnostics()
+
     def background(self, *args: object) -> None:
         self._ctx.background(*args)
 
