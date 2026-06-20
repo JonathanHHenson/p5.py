@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -48,6 +49,8 @@ class ShadedFace:
 
 
 _MESH_CACHE_SIZE = 256
+_SHADED_FACE_CACHE_SIZE = 256
+_shaded_face_cache: OrderedDict[tuple[object, ...], list[dict[str, Any]]] = OrderedDict()
 
 
 def clear_primitive_model_cache() -> None:
@@ -426,37 +429,51 @@ def shade_model_faces(
     normal_material: bool = False,
     cull_backfaces: bool = True,
 ) -> list[ShadedFace]:
-    projected_faces: list[ProjectedFace] = []
     texture = _texture_image(base_material)
-    for mesh in model.meshes:
-        projected_faces.extend(
-            _project_mesh_faces(
-                mesh,
-                camera,
-                projection,
-                viewport_width=viewport_width,
-                viewport_height=viewport_height,
-                cull_backfaces=cull_backfaces,
-                texture=texture,
+    cache_key = _shade_cache_key(
+        model,
+        camera,
+        projection,
+        viewport_width,
+        viewport_height,
+        base_material,
+        lights,
+        normal_material,
+        cull_backfaces,
+    )
+    payload = _shaded_face_cache.get(cache_key)
+    if payload is not None:
+        _shaded_face_cache.move_to_end(cache_key)
+    else:
+        payload = _rust_project_shade_faces(
+            model,
+            camera,
+            projection,
+            viewport_width=viewport_width,
+            viewport_height=viewport_height,
+            base_material=base_material,
+            lights=lights,
+            normal_material=normal_material,
+            cull_backfaces=cull_backfaces,
+        )
+        _shaded_face_cache[cache_key] = payload
+        if len(_shaded_face_cache) > _SHADED_FACE_CACHE_SIZE:
+            _ = _shaded_face_cache.popitem(last=False)
+    faces = []
+    for face in payload:
+        texcoords_payload = face.get("texcoords")
+        faces.append(
+            ShadedFace(
+                points=tuple((float(x), float(y)) for x, y in face["points"]),
+                color=cast(RGBAFloat, tuple(float(value) for value in face["color"])),
+                depth=float(face["depth"]),
+                texcoords=None
+                if texcoords_payload is None
+                else tuple((float(u), float(v)) for u, v in texcoords_payload),
+                texture=None if normal_material else texture,
             )
         )
-    projected_faces.sort(key=lambda face: face.depth, reverse=True)
-    return [
-        ShadedFace(
-            points=face.points,
-            color=_shade_face(
-                face,
-                material=base_material,
-                camera=camera,
-                lights=lights,
-                normal_material=normal_material,
-            ),
-            depth=face.depth,
-            texcoords=face.texcoords,
-            texture=None if normal_material else face.texture,
-        )
-        for face in projected_faces
-    ]
+    return faces
 
 
 def project_model_faces(
@@ -471,21 +488,32 @@ def project_model_faces(
     if viewport_width <= 0 or viewport_height <= 0:
         raise ArgumentValidationError("viewport dimensions must be positive.")
     _validate_projection(projection)
-
-    projected_faces: list[ProjectedFace] = []
-    for mesh in model.meshes:
-        projected_faces.extend(
-            _project_mesh_faces(
-                mesh,
-                camera,
-                projection,
-                viewport_width=viewport_width,
-                viewport_height=viewport_height,
-                cull_backfaces=cull_backfaces,
+    payload = _rust_project_shade_faces(
+        model,
+        camera,
+        projection,
+        viewport_width=viewport_width,
+        viewport_height=viewport_height,
+        base_material=Material3D(),
+        lights=(),
+        normal_material=False,
+        cull_backfaces=cull_backfaces,
+    )
+    faces = []
+    for face in payload:
+        texcoords_payload = face.get("texcoords")
+        faces.append(
+            ProjectedFace(
+                points=tuple((float(x), float(y)) for x, y in face["points"]),
+                depth=float(face["depth"]),
+                normal=Vec3(*cast(tuple[float, float, float], tuple(face["normal"]))),
+                center=Vec3(*cast(tuple[float, float, float], tuple(face["center"]))),
+                texcoords=None
+                if texcoords_payload is None
+                else tuple((float(u), float(v)) for u, v in texcoords_payload),
             )
         )
-
-    return sorted(projected_faces, key=lambda face: face.depth, reverse=True)
+    return faces
 
 
 def rasterize_faces_image(
@@ -496,19 +524,172 @@ def rasterize_faces_image(
 ) -> P5Image:
     width = max(1, int(math.ceil(viewport_width)))
     height = max(1, int(math.ceil(viewport_height)))
-    overlay = P5Image(width, height)
+    from p5.rust.canvas import require_canvas_extension
 
+    payload = []
     for face in faces:
+        texture_payload = None
         if (
             face.texture is not None
             and face.texcoords is not None
             and len(face.points) == len(face.texcoords)
         ):
-            _draw_textured_face(overlay, face)
-            continue
-        _draw_polygon(overlay, face.points, _rgba_to_int(face.color))
+            texture_payload = {
+                "width": face.texture.width,
+                "height": face.texture.height,
+                "pixels": face.texture.to_rgba_bytes(),
+            }
+        payload.append(
+            {
+                "points": list(face.points),
+                "color": face.color,
+                "texcoords": None if face.texcoords is None else list(face.texcoords),
+                "texture": texture_payload,
+            }
+        )
+    try:
+        pixels = require_canvas_extension().rasterize_faces_rgba(width, height, payload)
+    except ValueError as exc:
+        raise ArgumentValidationError(str(exc)) from exc
+    return P5Image(width, height, pixels)
 
-    return overlay
+
+def _rust_project_shade_faces(
+    model: Model3D,
+    camera: Camera3D,
+    projection: Projection3D,
+    *,
+    viewport_width: float,
+    viewport_height: float,
+    base_material: Material3D,
+    lights: tuple[Light3D, ...],
+    normal_material: bool,
+    cull_backfaces: bool,
+) -> list[dict[str, Any]]:
+    from p5.rust.canvas import require_canvas_extension
+
+    meshes = [
+        {
+            "vertices": [(vertex.x, vertex.y, vertex.z) for vertex in mesh.vertices],
+            "faces": [list(face) for face in mesh.faces],
+            "texcoords": list(mesh.texcoords),
+        }
+        for mesh in model.meshes
+    ]
+    camera_payload = {
+        "eye": (camera.eye.x, camera.eye.y, camera.eye.z),
+        "target": (camera.target.x, camera.target.y, camera.target.z),
+        "up": (camera.up.x, camera.up.y, camera.up.z),
+    }
+    if isinstance(projection, PerspectiveProjection):
+        projection_payload: dict[str, Any] = {
+            "kind": "perspective",
+            "fov_y": projection.fov_y,
+            "aspect": projection.aspect,
+            "near": projection.near,
+            "far": projection.far,
+        }
+    else:
+        projection_payload = {
+            "kind": "orthographic",
+            "width": projection.width,
+            "height": projection.height,
+            "near": projection.near,
+            "far": projection.far,
+        }
+    material_payload = {
+        "base_color": base_material.base_color,
+        "emissive_color": base_material.emissive_color,
+        "specular_color": base_material.specular_color,
+        "shininess": base_material.shininess,
+    }
+    light_payloads = [
+        {
+            "kind": light.kind.value,
+            "color": light.color,
+            "intensity": light.intensity,
+            "position": None
+            if light.position is None
+            else (light.position.x, light.position.y, light.position.z),
+            "direction": None
+            if light.direction is None
+            else (light.direction.x, light.direction.y, light.direction.z),
+        }
+        for light in lights
+    ]
+    try:
+        return list(
+            require_canvas_extension().project_shade_faces(
+                meshes,
+                camera_payload,
+                projection_payload,
+                viewport_width,
+                viewport_height,
+                material_payload,
+                light_payloads,
+                normal_material,
+                cull_backfaces,
+            )
+        )
+    except ValueError as exc:
+        raise ArgumentValidationError(str(exc)) from exc
+
+
+def _shade_cache_key(
+    model: Model3D,
+    camera: Camera3D,
+    projection: Projection3D,
+    viewport_width: float,
+    viewport_height: float,
+    material: Material3D,
+    lights: tuple[Light3D, ...],
+    normal_material: bool,
+    cull_backfaces: bool,
+) -> tuple[object, ...]:
+    if isinstance(projection, PerspectiveProjection):
+        projection_key: tuple[object, ...] = (
+            "perspective",
+            projection.fov_y,
+            projection.aspect,
+            projection.near,
+            projection.far,
+        )
+    else:
+        projection_key = (
+            "orthographic",
+            projection.width,
+            projection.height,
+            projection.near,
+            projection.far,
+        )
+    lights_key = tuple(
+        (
+            light.kind.value,
+            light.color,
+            light.intensity,
+            None
+            if light.position is None
+            else (light.position.x, light.position.y, light.position.z),
+            None
+            if light.direction is None
+            else (light.direction.x, light.direction.y, light.direction.z),
+        )
+        for light in lights
+    )
+    return (
+        id(model),
+        camera,
+        projection_key,
+        viewport_width,
+        viewport_height,
+        material.base_color,
+        material.emissive_color,
+        material.specular_color,
+        material.shininess,
+        lights_key,
+        normal_material,
+        cull_backfaces,
+    )
 
 
 def _project_mesh_faces(
@@ -782,7 +963,12 @@ def _light_direction(light: Light3D, center: Vec3) -> Vec3 | None:
 
 
 def _clamp_rgba(color: RGBAFloat) -> RGBAFloat:
-    return tuple(max(0.0, min(1.0, component)) for component in color)  # type: ignore[return-value]
+    return (
+        max(0.0, min(1.0, color[0])),
+        max(0.0, min(1.0, color[1])),
+        max(0.0, min(1.0, color[2])),
+        max(0.0, min(1.0, color[3])),
+    )
 
 
 def _visible(point: Vec3, projection: Projection3D) -> bool:

@@ -88,7 +88,7 @@ async def preload() -> None:
 - Interactive sketches with mouse, keyboard, and touch state when native window
   support is available.
 - WEBGL-style 3D sketches with primitives, lights, materials, models, textures,
-  and shader objects on the current software-projected 3D path.
+  and shader objects on the current Rust-backed software 3D path.
 - Small games and visual toys using the examples as starting points.
 
 Loaded images keep their Rust-managed asset until you mutate pixels, so normal

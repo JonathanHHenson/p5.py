@@ -36,6 +36,8 @@ _PERFORMANCE_COUNTER_KEYS = (
     "gpu_frames_rendered",
     "event_polls",
 )
+PerformanceCounterValue = int | dict[str, int]
+PerformanceCounters = dict[str, PerformanceCounterValue]
 _TextMetricKey = tuple[str, str | None, tuple[tuple[str, Hashable], ...]]
 _MatrixPayload = tuple[float, float, float, float, float, float]
 
@@ -150,8 +152,8 @@ class CanvasRenderer:
             return 1.0
         return float(self._call("display-density reporting", self._canvas.display_density))
 
-    def performance_counters(self) -> dict[str, object]:
-        counters: dict[str, object] = dict(self._performance_counters)
+    def performance_counters(self) -> PerformanceCounters:
+        counters: PerformanceCounters = dict(self._performance_counters)
         canvas = self._canvas
         callback = getattr(canvas, "performance_counters", None) if canvas is not None else None
         if callable(callback):

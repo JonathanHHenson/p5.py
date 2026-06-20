@@ -91,7 +91,7 @@ for hot loops rather than as the only style for simple sketches.
 - `load_model(path, normalize=False)`
 - `model(shape)`
 
-Current WEBGL support is a deterministic software-projected path. It is useful
+Current WEBGL support is a deterministic Rust-backed software 3D path. It is useful
 for small sketches, tests, examples, model loading, materials, lights, texture
 coordinates, and API compatibility work, but it is not yet native accelerated
 3D rendering. Backend capabilities distinguish `software_three_d` from

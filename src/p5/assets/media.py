@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from importlib import import_module
 from pathlib import Path
 from typing import Any, cast
@@ -367,9 +368,10 @@ def _convert_frame_bytes(frame: Any, width: int, height: int, channels: int) -> 
         )
     from p5.rust.canvas import require_canvas_extension
 
+    frame_bytes = bytes(cast(Callable[[], bytes], tobytes)())
     try:
         return bytes(
-            require_canvas_extension().media_frame_to_rgba(width, height, channels, tobytes())
+            require_canvas_extension().media_frame_to_rgba(width, height, channels, frame_bytes)
         )
     except ValueError as exc:
         raise BackendCapabilityError(

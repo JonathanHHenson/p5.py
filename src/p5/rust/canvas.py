@@ -1,3 +1,4 @@
+# pyright: reportConstantRedefinition=false
 """Optional Rust canvas runtime bridge.
 
 The public package remains importable without the compiled extension. Running
@@ -81,7 +82,28 @@ class _CanvasModule(Protocol):
         self, width: int, height: int, pixels: bytes, mode: str, value: float | None = None
     ) -> bytes: ...
 
-    def media_frame_to_rgba(self, width: int, height: int, channels: int, pixels: bytes) -> bytes: ...
+    def media_frame_to_rgba(
+        self, width: int, height: int, channels: int, pixels: bytes
+    ) -> bytes: ...
+
+    def parse_obj_model(self, text: str, source: str, normalize: bool) -> dict[str, Any]: ...
+
+    def project_shade_faces(
+        self,
+        meshes: list[dict[str, Any]],
+        camera: dict[str, Any],
+        projection: dict[str, Any],
+        viewport_width: float,
+        viewport_height: float,
+        material: dict[str, Any],
+        lights: list[dict[str, Any]],
+        normal_material: bool,
+        cull_backfaces: bool,
+    ) -> list[dict[str, Any]]: ...
+
+    def rasterize_faces_rgba(
+        self, width: int, height: int, faces: list[dict[str, Any]]
+    ) -> bytes: ...
 
 
 _loaded_canvas: ModuleType | None
@@ -134,7 +156,7 @@ def canvas_abi_version() -> int | None:
     if value is None:
         return None
     try:
-        return int(value)
+        return int(cast(Any, value))
     except (TypeError, ValueError):
         return None
 

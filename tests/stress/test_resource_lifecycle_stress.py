@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from p5.assets.image import Image
-from p5.backends.canvas_renderer import CanvasRenderer
+from p5.backends.canvas_renderer import CanvasRenderer, PerformanceCounters
 from p5.constants import BLEND, MULTIPLY
 from p5.core.color import Color
 from p5.core.state import StyleState
@@ -11,6 +11,12 @@ from p5.core.transform import Matrix2D
 from p5.rust.canvas import require_canvas_extension
 
 pytestmark = pytest.mark.stress
+
+
+def _counter_value(counters: PerformanceCounters, key: str) -> int:
+    value = counters[key]
+    assert isinstance(value, int)
+    return value
 
 
 def _renderer() -> CanvasRenderer:
@@ -37,9 +43,9 @@ def test_canvas_churns_images_pixels_and_resizes_without_inconsistent_state() ->
     counters = renderer.performance_counters()
     assert renderer.width > 0
     assert renderer.physical_width > 0
-    assert counters["image_cache_misses"] >= 100
-    assert counters["pixel_readbacks"] >= 100
-    assert counters["pixel_uploads"] >= 100
+    assert _counter_value(counters, "image_cache_misses") >= 100
+    assert _counter_value(counters, "pixel_readbacks") >= 100
+    assert _counter_value(counters, "pixel_uploads") >= 100
     renderer.close()
 
 
@@ -62,7 +68,7 @@ def test_dynamic_text_cache_is_bounded_during_long_running_sessions() -> None:
     assert isinstance(native, dict)
     assert native["text_cache_misses"] >= 500
     assert native["text_cache_evictions"] > 0
-    assert counters["text_cache_hits"] > 0
+    assert _counter_value(counters, "text_cache_hits") > 0
     renderer.close()
 
 
@@ -88,6 +94,6 @@ def test_repeated_fallback_paths_report_diagnostics() -> None:
         renderer.load_pixels()
 
     counters = renderer.performance_counters()
-    assert counters["cpu_fallbacks"] >= 90
-    assert counters["pixel_readbacks"] >= 90
+    assert _counter_value(counters, "cpu_fallbacks") >= 90
+    assert _counter_value(counters, "pixel_readbacks") >= 90
     renderer.close()

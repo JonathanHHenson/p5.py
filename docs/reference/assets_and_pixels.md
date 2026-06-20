@@ -126,3 +126,7 @@ contiguous frame buffer.
 
 - `load_model_async(path, normalize=False, package=None)`
 - `load_shader_async(vertex_path, fragment_path)`
+
+Wavefront OBJ parsing and normalization are handled by the Rust canvas
+extension and adapted back to the public Python `Model3D` / `Mesh3D` data
+classes.

@@ -26,8 +26,8 @@ user sketch
 `p5.rust._canvas` owns drawing, presentation, image asset loading/saving,
 image-local byte operations, media frame conversion, text, pixels, export, and
 native window/input support when built with those capabilities.
-Current `WEBGL` support is a Python software-projected path presented through
-the canvas runtime, not native accelerated 3D. Backend capabilities distinguish
+Current `WEBGL` support is a Rust-backed software 3D path presented through the
+canvas runtime, not native accelerated 3D. Backend capabilities distinguish
 `software_three_d`, `native_three_d`, `shaders`, and `native_shaders`; do not
 imply native 3D or native shader support from `three_d=True`.
 

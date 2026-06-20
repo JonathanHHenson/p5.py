@@ -1138,10 +1138,10 @@ class SketchContext:
             or self.state.style.fill_color is not None
         )
         if draw_fill:
-            textured_faces = [
-                face for face in faces if face.texture is not None and face.texcoords is not None
-            ]
-            if textured_faces:
+            use_overlay = len(faces) > 512 or any(
+                face.texture is not None and face.texcoords is not None for face in faces
+            )
+            if use_overlay:
                 overlay = rasterize_faces_image(
                     faces,
                     viewport_width=float(self.width),
@@ -1160,10 +1160,10 @@ class SketchContext:
                     self.state.transform.matrix,
                 )
             else:
+                fill_style = self.state.style.copy()
+                fill_style.stroke_color = None
                 for face in faces:
-                    fill_style = self.state.style.copy()
                     fill_style.fill_color = self._rgba_float_to_color(face.color)
-                    fill_style.stroke_color = None
                     self.renderer.polygon(
                         list(face.points),
                         fill_style,

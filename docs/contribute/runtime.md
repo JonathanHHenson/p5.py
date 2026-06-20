@@ -201,12 +201,13 @@ buffer by design.
 
 ## WEBGL Runtime Status
 
-`create_canvas(..., WEBGL)` currently uses Python software projection and 2D
-canvas drawing. It is deterministic and covered by headless tests, but it is not
-native accelerated 3D. Backend capabilities therefore distinguish:
+`create_canvas(..., WEBGL)` currently uses Rust-backed software projection,
+lighting, sorting, OBJ parsing, and fallback rasterization presented through the
+2D canvas runtime. It is deterministic and covered by headless tests, but it is
+not native accelerated 3D. Backend capabilities therefore distinguish:
 
 - `three_d`: WEBGL mode is accepted.
-- `software_three_d`: the Python software 3D path is available.
+- `software_three_d`: the Rust-backed software 3D path is available.
 - `native_three_d`: the native runtime owns 3D geometry and depth rendering.
 - `shaders`: shader-style Python API objects are accepted.
 - `native_shaders`: user shader programs are handled by the native renderer.

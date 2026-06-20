@@ -83,11 +83,11 @@ bytes-based, and region-based pixel workflows. Use them when changing `Image`,
 `load_pixels()`, `load_pixel_bytes()`, `update_pixels()`, or image cache
 behavior.
 
-The WEBGL 3D benchmarks exercise the current software-projected 3D path for
+The WEBGL 3D benchmarks exercise the current Rust-backed software 3D path for
 box, sphere, textured plane, imported model, and repeated primitive scenes.
 They are frame-style benchmarks and keep the same 120 FPS target; failures are
-expected optimization signals until native 3D or additional software
-optimizations land.
+expected optimization signals until native accelerated 3D or additional
+software optimizations land.
 
 Checked-in baseline snapshots live in `tests/benchmark/baselines/` as TOML.
 Each baseline records the command, machine/configuration, commit, canvas size,

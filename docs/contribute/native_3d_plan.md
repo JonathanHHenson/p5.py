@@ -11,7 +11,7 @@ native accelerated 3D pipeline.
 Backend capability reporting should keep these concepts separate:
 
 - `three_d`: `create_canvas(..., WEBGL)` is accepted.
-- `software_three_d`: 3D is implemented by the Python software renderer.
+- `software_three_d`: 3D is implemented by the Rust-backed software path.
 - `native_three_d`: 3D geometry is uploaded and drawn by the native runtime.
 - `shaders`: shader objects and shader-style API calls are accepted.
 - `native_shaders`: user shader programs are compiled or interpreted by the

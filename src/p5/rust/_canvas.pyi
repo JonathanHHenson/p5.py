@@ -33,6 +33,19 @@ def image_filter_rgba(
     width: int, height: int, pixels: bytes, mode: str, value: float | None = None
 ) -> bytes: ...
 def media_frame_to_rgba(width: int, height: int, channels: int, pixels: bytes) -> bytes: ...
+def parse_obj_model(text: str, source: str, normalize: bool) -> dict[str, Any]: ...
+def project_shade_faces(
+    meshes: list[dict[str, Any]],
+    camera: dict[str, Any],
+    projection: dict[str, Any],
+    viewport_width: float,
+    viewport_height: float,
+    material: dict[str, Any],
+    lights: list[dict[str, Any]],
+    normal_material: bool,
+    cull_backfaces: bool,
+) -> list[dict[str, Any]]: ...
+def rasterize_faces_rgba(width: int, height: int, faces: list[dict[str, Any]]) -> bytes: ...
 CANVAS_ABI_VERSION: int
 
 class P5Image:

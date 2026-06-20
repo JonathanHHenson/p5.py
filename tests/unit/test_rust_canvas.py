@@ -309,10 +309,11 @@ class FakeCanvasModuleWithHealthFailure(FakeCanvasModule):
         raise RuntimeError("boom")
 
 
-class FakeCanvasModuleWithoutAbi(FakeCanvasModule):
+class FakeCanvasModuleWithoutAbi:
     CANVAS_ABI_VERSION = None
+    Canvas = FakeCanvas
 
-    def canvas_abi_version(self) -> object:
+    def canvas_abi_version(self) -> None:
         return None
 
 
@@ -989,7 +990,7 @@ def test_canvas_backend_unbounded_interactive_respects_no_loop_from_draw(
         context.state.timing.frame_count += 1
         context.no_loop()
 
-    canvas.poll_events = poll_events  # type: ignore[method-assign]
+    canvas.poll_events = poll_events
     sketch._draw_frame = draw_frame  # type: ignore[method-assign]
     monkeypatch.setattr("p5.backends.canvas.time.sleep", lambda _delay: None)
 

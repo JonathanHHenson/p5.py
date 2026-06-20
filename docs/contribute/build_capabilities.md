@@ -10,7 +10,7 @@ Use this matrix when validating local builds, wheels, and release candidates.
 | GPU renderer | Optional/platform-dependent | `wgpu` path in `p5_canvas` | `p5.rust.canvas.canvas_gpu_status()` and `CanvasBackend.gpu_status()` | `uv run pytest tests/benchmark/test_canvas_backend_perf.py --run-benchmarks -q -s` |
 | Media helpers | Optional extra | Python package extra `media` | import/use media helpers | `uv sync --extra media --dev` plus media-specific examples |
 | Optional acceleration | Optional | `crates/p5_accel` PyO3 module `p5.rust._accelerated` | `p5.rust.is_acceleration_available()` | `uv run pytest tests/unit/test_rust_acceleration.py` |
-| Software WEBGL path | Required for accepted `WEBGL` mode | Python software projection plus canvas presentation | backend flags `three_d=True`, `software_three_d=True`, `native_three_d=False` | `uv run pytest tests/benchmark/test_webgl_3d_perf.py --run-benchmarks -q -s` |
+| Software WEBGL path | Required for accepted `WEBGL` mode | Rust-backed software projection/rasterization plus canvas presentation | backend flags `three_d=True`, `software_three_d=True`, `native_three_d=False` | `uv run pytest tests/benchmark/test_webgl_3d_perf.py --run-benchmarks -q -s` |
 
 ## Compatibility Marker
 

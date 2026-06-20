@@ -39,8 +39,7 @@ def load_model(
     """
 
     obj_text, source = _read_text_asset(path, package=package)
-    model = _parse_obj(obj_text, source=source)
-    return _normalize_model(model) if normalize else model
+    return _parse_obj_rust(obj_text, source=source, normalize=normalize)
 
 
 async def load_model_async(
@@ -143,6 +142,22 @@ def _parse_obj(text: str, *, source: Path) -> Model3D:
         normals=normals,
         texcoords=texcoords,
     )
+    return Model3D(meshes=(mesh,), source=source)
+
+
+def _parse_obj_rust(text: str, *, source: Path, normalize: bool) -> Model3D:
+    from p5.rust.canvas import require_canvas_extension
+
+    try:
+        payload = require_canvas_extension().parse_obj_model(text, str(source), normalize)
+    except ValueError as exc:
+        raise ArgumentValidationError(str(exc)) from exc
+
+    vertices = tuple(Vec3(float(x), float(y), float(z)) for x, y, z in payload["vertices"])
+    faces = tuple(tuple(int(index) for index in face) for face in payload["faces"])
+    texcoords = tuple((float(u), float(v)) for u, v in payload.get("texcoords", ()))
+    normals = tuple(Vec3(float(x), float(y), float(z)) for x, y, z in payload.get("normals", ()))
+    mesh = Mesh3D(vertices=vertices, faces=faces, normals=normals, texcoords=texcoords)
     return Model3D(meshes=(mesh,), source=source)
 
 
