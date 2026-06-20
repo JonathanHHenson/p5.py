@@ -120,6 +120,12 @@ jobs:
           target: ${{ matrix.target }}
           args: ${{ matrix.maturin-args }}
           manylinux: auto
+          before-script-linux: |
+            if command -v dnf >/dev/null 2>&1; then
+              dnf install -y pkgconf-pkg-config libX11-devel libXcursor-devel libXi-devel libXrandr-devel libxcb-devel libxkbcommon-devel wayland-devel
+            else
+              yum install -y pkgconfig libX11-devel libXcursor-devel libXi-devel libXrandr-devel libxcb-devel libxkbcommon-devel wayland-devel
+            fi
 
       - name: Upload wheel
         uses: actions/upload-artifact@v4
