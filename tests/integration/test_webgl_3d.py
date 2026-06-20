@@ -83,6 +83,39 @@ def test_webgl_obj_model_renders_from_example_asset():
     assert any(value > 0 for value in pixels)
 
 
+def test_webgl_obj_model_transform_is_applied_before_projection():
+    teapot = p5.load_model(Path("examples/assets/teapot.obj"), normalize=True)
+
+    def setup():
+        p5.create_canvas(128, 128, p5.WEBGL)
+        p5.background(0)
+        p5.no_stroke()
+        p5.camera(0, -60, 470, 0, 20, 0, 0, 1, 0)
+        p5.perspective(math.pi / 3, 1.0, 0.1, 4000)
+        p5.specular_material(190, 160, 240)
+
+    def draw():
+        p5.ambient_light(45)
+        p5.directional_light(255, 244, 230, -0.45, -0.7, -1.0)
+        p5.translate(0, -30)
+        p5.scale(70)
+        p5.model(teapot)
+
+    context = p5.run(setup=setup, draw=draw, headless=True, max_frames=1)
+
+    pixels = context.load_pixels()
+    occupied = []
+    for y in range(128):
+        for x in range(128):
+            index = (y * 128 + x) * 4
+            if pixels[index : index + 3] != [0, 0, 0]:
+                occupied.append((x, y))
+
+    assert occupied
+    assert max(x for x, _ in occupied) - min(x for x, _ in occupied) >= 24
+    assert max(y for _, y in occupied) - min(y for _, y in occupied) >= 12
+
+
 def test_canvas_webgl_box_renders_non_empty_canvas():
     if not is_canvas_available():
         return

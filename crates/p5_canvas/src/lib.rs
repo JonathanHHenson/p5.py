@@ -3792,10 +3792,16 @@ fn normalize_3d(value: Vec3d) -> PyResult<Vec3d> {
 }
 
 fn clamp_rgba_float(color: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) {
+    let max_rgb = color.0.max(color.1).max(color.2);
+    let (r, g, b) = if max_rgb > 1.0 {
+        (color.0 / max_rgb, color.1 / max_rgb, color.2 / max_rgb)
+    } else {
+        (color.0, color.1, color.2)
+    };
     (
-        color.0.clamp(0.0, 1.0),
-        color.1.clamp(0.0, 1.0),
-        color.2.clamp(0.0, 1.0),
+        r.clamp(0.0, 1.0),
+        g.clamp(0.0, 1.0),
+        b.clamp(0.0, 1.0),
         color.3.clamp(0.0, 1.0),
     )
 }

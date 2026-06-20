@@ -128,6 +128,35 @@ def test_software_3d_primitive_models_are_cached_by_parameters():
     assert primitive_model_cache_info()["sphere"].hits >= 1
 
 
+def test_box_model_faces_have_outward_winding():
+    mesh = box_model(20).meshes[0]
+
+    for face in mesh.faces:
+        points = [mesh.vertices[index] for index in face]
+        center = Vec3(
+            sum(point.x for point in points) / len(points),
+            sum(point.y for point in points) / len(points),
+            sum(point.z for point in points) / len(points),
+        )
+        edge_a = Vec3(
+            points[1].x - points[0].x,
+            points[1].y - points[0].y,
+            points[1].z - points[0].z,
+        )
+        edge_b = Vec3(
+            points[2].x - points[0].x,
+            points[2].y - points[0].y,
+            points[2].z - points[0].z,
+        )
+        normal = Vec3(
+            edge_a.y * edge_b.z - edge_a.z * edge_b.y,
+            edge_a.z * edge_b.x - edge_a.x * edge_b.z,
+            edge_a.x * edge_b.y - edge_a.y * edge_b.x,
+        )
+
+        assert normal.x * center.x + normal.y * center.y + normal.z * center.z > 0
+
+
 def test_software_3d_depth_sorting_returns_far_faces_first():
     model = Model3D(
         meshes=(

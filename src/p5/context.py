@@ -48,10 +48,11 @@ from p5.drawing.software3d import (
     cylinder_model,
     ellipsoid_model,
     plane_model,
-    rasterize_faces_image,
+    rasterize_faces_image_region,
     shade_model_faces,
     sphere_model,
     torus_model,
+    transform_model,
 )
 from p5.drawing.software3d import (
     save_obj as save_obj_model,
@@ -1122,8 +1123,11 @@ class SketchContext:
             native_renderer.draw_model(model)
             return
 
+        model_transform = self.state.transform.matrix
+        projected_model = transform_model(model, model_transform)
+        screen_transform = Matrix2D.identity()
         faces = shade_model_faces(
-            model,
+            projected_model,
             self._camera3d,
             self._projection3d,
             viewport_width=float(self.width),
@@ -1131,6 +1135,15 @@ class SketchContext:
             base_material=self._effective_3d_material(),
             lights=tuple(self._lights3d),
             normal_material=self._normal_material3d,
+            cache_identity=(
+                id(model),
+                model_transform.a,
+                model_transform.b,
+                model_transform.c,
+                model_transform.d,
+                model_transform.e,
+                model_transform.f,
+            ),
         )
         draw_fill = (
             self._normal_material3d
@@ -1138,38 +1151,23 @@ class SketchContext:
             or self.state.style.fill_color is not None
         )
         if draw_fill:
-            use_overlay = len(faces) > 512 or any(
-                face.texture is not None and face.texcoords is not None for face in faces
+            overlay, overlay_x, overlay_y = rasterize_faces_image_region(
+                faces,
+                viewport_width=float(self.width),
+                viewport_height=float(self.height),
             )
-            if use_overlay:
-                overlay = rasterize_faces_image(
-                    faces,
-                    viewport_width=float(self.width),
-                    viewport_height=float(self.height),
-                )
-                overlay_style = self.state.style.copy()
-                overlay_style.fill_color = None
-                overlay_style.stroke_color = None
-                self.renderer.draw_image(
-                    overlay,
-                    0.0,
-                    0.0,
-                    float(self.width),
-                    float(self.height),
-                    overlay_style,
-                    self.state.transform.matrix,
-                )
-            else:
-                fill_style = self.state.style.copy()
-                fill_style.stroke_color = None
-                for face in faces:
-                    fill_style.fill_color = self._rgba_float_to_color(face.color)
-                    self.renderer.polygon(
-                        list(face.points),
-                        fill_style,
-                        self.state.transform.matrix,
-                        close=True,
-                    )
+            overlay_style = self.state.style.copy()
+            overlay_style.fill_color = None
+            overlay_style.stroke_color = None
+            self.renderer.draw_image(
+                overlay,
+                float(overlay_x),
+                float(overlay_y),
+                float(overlay.width),
+                float(overlay.height),
+                overlay_style,
+                screen_transform,
+            )
         if self.state.style.stroke_color is not None:
             stroke_style = self.state.style.copy()
             stroke_style.fill_color = None
@@ -1177,7 +1175,7 @@ class SketchContext:
                 self.renderer.polygon(
                     list(face.points),
                     stroke_style,
-                    self.state.transform.matrix,
+                    screen_transform,
                     close=True,
                 )
 

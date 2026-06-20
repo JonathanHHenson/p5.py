@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from p5.assets.image import Image as P5Image
+from p5.core.transform import Matrix2D
 from p5.drawing.renderer3d import (
     Camera3D,
     Light3D,
@@ -111,7 +112,7 @@ def box_model(width: float, height: float | None = None, depth: float | None = N
 
     face_specs = (
         (
-            (Vec3(-hw, -hh, -hd), Vec3(hw, -hh, -hd), Vec3(hw, hh, -hd), Vec3(-hw, hh, -hd)),
+            (Vec3(-hw, hh, -hd), Vec3(hw, hh, -hd), Vec3(hw, -hh, -hd), Vec3(-hw, -hh, -hd)),
             ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
         ),
         (
@@ -131,7 +132,7 @@ def box_model(width: float, height: float | None = None, depth: float | None = N
             ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
         ),
         (
-            (Vec3(-hw, -hh, -hd), Vec3(-hw, hh, -hd), Vec3(-hw, hh, hd), Vec3(-hw, -hh, hd)),
+            (Vec3(-hw, -hh, hd), Vec3(-hw, hh, hd), Vec3(-hw, hh, -hd), Vec3(-hw, -hh, -hd)),
             ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
         ),
     )
@@ -428,6 +429,7 @@ def shade_model_faces(
     lights: tuple[Light3D, ...],
     normal_material: bool = False,
     cull_backfaces: bool = True,
+    cache_identity: object | None = None,
 ) -> list[ShadedFace]:
     texture = _texture_image(base_material)
     cache_key = _shade_cache_key(
@@ -440,6 +442,7 @@ def shade_model_faces(
         lights,
         normal_material,
         cull_backfaces,
+        cache_identity,
     )
     payload = _shaded_face_cache.get(cache_key)
     if payload is not None:
@@ -524,6 +527,48 @@ def rasterize_faces_image(
 ) -> P5Image:
     width = max(1, int(math.ceil(viewport_width)))
     height = max(1, int(math.ceil(viewport_height)))
+    return _rasterize_faces_image_at(faces, width=width, height=height, offset_x=0, offset_y=0)
+
+
+def rasterize_faces_image_region(
+    faces: list[ShadedFace],
+    *,
+    viewport_width: float,
+    viewport_height: float,
+) -> tuple[P5Image, int, int]:
+    if not faces:
+        return P5Image(1, 1), 0, 0
+    min_x = min(x for face in faces for x, _ in face.points)
+    min_y = min(y for face in faces for _, y in face.points)
+    max_x = max(x for face in faces for x, _ in face.points)
+    max_y = max(y for face in faces for _, y in face.points)
+    viewport_pixel_width = max(1, int(math.ceil(viewport_width)))
+    viewport_pixel_height = max(1, int(math.ceil(viewport_height)))
+    offset_x = max(0, min(viewport_pixel_width - 1, math.floor(min_x) - 1))
+    offset_y = max(0, min(viewport_pixel_height - 1, math.floor(min_y) - 1))
+    end_x = max(offset_x + 1, min(viewport_pixel_width, math.ceil(max_x) + 2))
+    end_y = max(offset_y + 1, min(viewport_pixel_height, math.ceil(max_y) + 2))
+    return (
+        _rasterize_faces_image_at(
+            faces,
+            width=end_x - offset_x,
+            height=end_y - offset_y,
+            offset_x=offset_x,
+            offset_y=offset_y,
+        ),
+        offset_x,
+        offset_y,
+    )
+
+
+def _rasterize_faces_image_at(
+    faces: list[ShadedFace],
+    *,
+    width: int,
+    height: int,
+    offset_x: int,
+    offset_y: int,
+) -> P5Image:
     from p5.rust.canvas import require_canvas_extension
 
     payload = []
@@ -541,7 +586,7 @@ def rasterize_faces_image(
             }
         payload.append(
             {
-                "points": list(face.points),
+                "points": [(x - offset_x, y - offset_y) for x, y in face.points],
                 "color": face.color,
                 "texcoords": None if face.texcoords is None else list(face.texcoords),
                 "texture": texture_payload,
@@ -552,6 +597,31 @@ def rasterize_faces_image(
     except ValueError as exc:
         raise ArgumentValidationError(str(exc)) from exc
     return P5Image(width, height, pixels)
+
+
+def transform_model(model: Model3D, matrix: Matrix2D) -> Model3D:
+    """Apply the active sketch transform to model coordinates before projection."""
+
+    if matrix == Matrix2D.identity():
+        return model
+    z_scale = (math.hypot(matrix.a, matrix.b) + math.hypot(matrix.c, matrix.d)) / 2.0
+    transformed_meshes = []
+    for mesh in model.meshes:
+        vertices = []
+        for vertex in mesh.vertices:
+            x = matrix.a * vertex.x + matrix.c * vertex.y + matrix.e
+            y = matrix.b * vertex.x + matrix.d * vertex.y - matrix.f
+            vertices.append(Vec3(x, y, vertex.z * z_scale))
+        transformed_meshes.append(
+            Mesh3D(
+                vertices=tuple(vertices),
+                faces=mesh.faces,
+                normals=mesh.normals,
+                texcoords=mesh.texcoords,
+                material=mesh.material,
+            )
+        )
+    return Model3D(meshes=tuple(transformed_meshes), source=model.source)
 
 
 def _rust_project_shade_faces(
@@ -645,6 +715,7 @@ def _shade_cache_key(
     lights: tuple[Light3D, ...],
     normal_material: bool,
     cull_backfaces: bool,
+    cache_identity: object | None = None,
 ) -> tuple[object, ...]:
     if isinstance(projection, PerspectiveProjection):
         projection_key: tuple[object, ...] = (
@@ -677,7 +748,7 @@ def _shade_cache_key(
         for light in lights
     )
     return (
-        id(model),
+        id(model) if cache_identity is None else cache_identity,
         camera,
         projection_key,
         viewport_width,
@@ -963,6 +1034,9 @@ def _light_direction(light: Light3D, center: Vec3) -> Vec3 | None:
 
 
 def _clamp_rgba(color: RGBAFloat) -> RGBAFloat:
+    max_rgb = max(color[0], color[1], color[2])
+    if max_rgb > 1.0:
+        color = (color[0] / max_rgb, color[1] / max_rgb, color[2] / max_rgb, color[3])
     return (
         max(0.0, min(1.0, color[0])),
         max(0.0, min(1.0, color[1])),
