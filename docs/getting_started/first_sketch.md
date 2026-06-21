@@ -1,5 +1,11 @@
 # Your First Sketch
 
+> [!IMPORTANT]
+> This archived page shows the old `p5` package API. For maintained releases,
+> install [gummy-snake](https://pypi.org/project/gummy-snake/) and use
+> `import gummysnake as gs`. Active development lives at
+> [github.com/JonathanHHenson/gummy_snake](https://github.com/JonathanHHenson/gummy_snake).
+
 A sketch usually has two functions:
 
 - `setup()` runs once.

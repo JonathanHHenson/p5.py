@@ -1,5 +1,12 @@
 # Getting Started
 
+> [!IMPORTANT]
+> These getting-started docs are archived. `p5py` / `p5py-vibe` is now
+> **Gummy Snake**. Use the maintained project at
+> [github.com/JonathanHHenson/gummy_snake](https://github.com/JonathanHHenson/gummy_snake)
+> and install it with `pip install gummy-snake`. New sketches should import
+> `gummysnake` rather than `p5`.
+
 p5py is a Python creative-coding package. You write normal Python functions,
 call drawing commands such as `circle()` and `background()`, and let p5py run the
 sketch lifecycle.
@@ -28,4 +35,3 @@ def draw() -> None:
 
 p5.run(setup=setup, draw=draw)
 ```
-

@@ -1,5 +1,23 @@
 # p5py
 
+> [!IMPORTANT]
+> This project is archived. `p5py` / `p5py-vibe` has been rebranded as
+> **Gummy Snake** and active development has moved to
+> [github.com/JonathanHHenson/gummy_snake](https://github.com/JonathanHHenson/gummy_snake).
+> Existing users should migrate to the new package:
+>
+> ```sh
+> pip install gummy-snake
+> ```
+>
+> New sketches should import `gummysnake` instead of `p5`:
+>
+> ```python
+> import gummysnake as gs
+> ```
+>
+> The new PyPI project is [gummy-snake](https://pypi.org/project/gummy-snake/).
+
 [![PyPI](https://img.shields.io/pypi/v/p5py-vibe.svg)](https://pypi.org/project/p5py-vibe/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/p5py-vibe.svg)](https://pypi.org/project/p5py-vibe/)
 [![License: LGPL-2.1](https://img.shields.io/badge/License-LGPL--2.1-blue.svg)](license.txt)

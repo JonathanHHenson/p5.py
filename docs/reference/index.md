@@ -1,6 +1,13 @@
 # API Reference
 
-The public package is imported as `p5`:
+> [!IMPORTANT]
+> This API reference is archived for `p5py` / `p5py-vibe`. The maintained
+> project is **Gummy Snake** at
+> [github.com/JonathanHHenson/gummy_snake](https://github.com/JonathanHHenson/gummy_snake),
+> published on PyPI as [gummy-snake](https://pypi.org/project/gummy-snake/).
+> New code should use `import gummysnake as gs`.
+
+The archived public package is imported as `p5`:
 
 ```python
 import p5

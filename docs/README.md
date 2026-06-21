@@ -1,5 +1,11 @@
 # p5py Documentation
 
+> [!IMPORTANT]
+> This documentation is archived. `p5py` / `p5py-vibe` has been rebranded as
+> **Gummy Snake**. Active development and current documentation now live at
+> [github.com/JonathanHHenson/gummy_snake](https://github.com/JonathanHHenson/gummy_snake),
+> and the maintained package is [gummy-snake](https://pypi.org/project/gummy-snake/).
+
 This documentation is split by audience:
 
 - [Getting started](getting_started/index.md): learn p5py by writing sketches.

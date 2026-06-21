@@ -1,5 +1,7 @@
 """p5-py public API."""
 
+from warnings import warn
+
 from p5.api.compatibility import (
     COMPATIBILITY_MATRIX,
     CompatibilityStatus,
@@ -974,3 +976,11 @@ __all__ = [
     "request_pointer_lock",
     "exit_pointer_lock",
 ]
+
+warn(
+    "p5py / p5py-vibe is archived and has been rebranded as Gummy Snake. Install "
+    + "`gummy-snake` and import `gummysnake` for the maintained project: "
+    + "https://github.com/JonathanHHenson/gummy_snake",
+    FutureWarning,
+    stacklevel=2,
+)

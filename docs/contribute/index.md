@@ -1,5 +1,12 @@
 # Contributor Guide
 
+> [!IMPORTANT]
+> This repository is archived. Active development has moved to **Gummy Snake** at
+> [github.com/JonathanHHenson/gummy_snake](https://github.com/JonathanHHenson/gummy_snake),
+> published as [gummy-snake](https://pypi.org/project/gummy-snake/). These
+> contributor notes are retained only for the archived `p5py` / `p5py-vibe`
+> codebase.
+
 These docs are for contributors who want to understand how p5py is built.
 
 - [Architecture](architecture.md)

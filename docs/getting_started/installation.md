@@ -1,6 +1,19 @@
 # Installation
 
-Install the package from PyPI:
+> [!IMPORTANT]
+> This project is archived. `p5py` / `p5py-vibe` has been rebranded as
+> **Gummy Snake** and active development has moved to
+> [github.com/JonathanHHenson/gummy_snake](https://github.com/JonathanHHenson/gummy_snake).
+> Existing users should install the maintained package instead:
+>
+> ```sh
+> pip install gummy-snake
+> ```
+>
+> New sketches should use `import gummysnake as gs`. The new PyPI project is
+> [gummy-snake](https://pypi.org/project/gummy-snake/).
+
+Install the archived package from PyPI:
 
 ```sh
 pip install p5py-vibe
@@ -61,4 +74,3 @@ uv sync --dev
 uvx maturin develop --manifest-path crates/p5_canvas/Cargo.toml --module-name p5.rust._canvas --python-source src --features extension-module
 uv run python examples/01_getting_started/basic_shapes.py --headless --frames 1
 ```
-
